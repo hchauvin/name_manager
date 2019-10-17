@@ -1,0 +1,87 @@
+version: 2.1
+
+executors:
+  vs2019:
+    description: >
+      An executor preloaded with visual studios 2019 plus a number of other
+      development tools.
+    parameters:
+      version:
+        type: string
+        description: The image version to use when executing. Defaults to "201908-06"
+        default: "201908-06"
+      shell:
+        type: string
+        description: >
+          The shell to use.
+          Defaults to `powershell.exe -ExecutionPolicy Bypass`
+        default: powershell.exe -ExecutionPolicy Bypass
+    machine:
+      image: "windows-server-2019-vs2019:<< parameters.version >>"
+      resource_class: windows.medium
+      shell: << parameters.shell >>
+
+jobs:
+  test-linux:
+    docker:
+      - image: circleci/golang:1.10
+    steps:
+      - checkout
+      - run: go test -v ./...
+      - run:
+          name: Build CLI
+          command: |
+            mkdir bin
+            go build -o bin/name_manager github.com/hchauvin/name_manager/cmd/name_manager
+      - run:
+          name: Examples
+          command: |
+            examples/simple.sh
+            examples/docker_compose.sh
+  test-darwin:
+    macos:
+      xcode: 9.3.0
+    steps:
+      - checkout
+      - run: go test -v ./...
+      - run:
+          name: Build CLI
+          command: |
+            mkdir bin
+            go build -o bin/name_manager github.com/hchauvin/name_manager/cmd/name_manager
+      - run:
+          name: Examples
+          command: |
+            examples/simple.sh
+            examples/docker_compose.sh
+  test-windows:
+    executor:
+      name: vs2019
+    steps:
+      - checkout
+      - run: go test -v ./...
+    # TODO: Run examples on Windows
+  release:
+    docker:
+      - image: circleci/golang:1.10
+    steps:
+      - checkout
+      - run: curl -sL https://git.io/goreleaser | bash
+
+workflows:
+  main:
+    jobs:
+      - test-linux:
+          filters:
+            tags:
+              only: /^v.*/
+      - release:
+          requires:
+            - test-linux
+            - test-darwin
+            - test-windows
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /v[0-9]+(\.[0-9]+)*(-.*)*/
