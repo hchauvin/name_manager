@@ -25,10 +25,8 @@ jobs:
   test-linux:
     docker:
       - image: circleci/golang:1.10
-    working_directory: /go/src/github.com/hchauvin/name_manager
     steps:
       - checkout
-      - run: dep ensure
       - run: go test -v ./...
       - run:
           name: Build CLI
