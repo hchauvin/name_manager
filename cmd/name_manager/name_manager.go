@@ -55,6 +55,8 @@ func main() {
 	app := cli.NewApp()
 
 	app.Version = fmt.Sprintf("%s (commit: %s; date: %s)", version, commit, date)
+	app.Name = "name_manager"
+	app.Usage = "Manage shared test resources with a global lock"
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
 			Name:  "backend",
