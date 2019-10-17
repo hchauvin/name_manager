@@ -75,6 +75,14 @@ workflows:
           filters:
             tags:
               only: /^v.*/
+      - test-darwin:
+          filters:
+            tags:
+              only: /^v.*/
+      - test-windows:
+          filters:
+            tags:
+              only: /^v.*/
       - release:
           requires:
             - test-linux
