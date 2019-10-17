@@ -24,7 +24,7 @@ executors:
 jobs:
   test-linux:
     docker:
-      - image: circleci/golang:1.10
+      - image: circleci/golang:1.13
     steps:
       - checkout
       - run: go test -v ./...
@@ -63,7 +63,7 @@ jobs:
     # TODO: Run examples on Windows
   release:
     docker:
-      - image: circleci/golang:1.10
+      - image: circleci/golang:1.13
     steps:
       - checkout
       - run: curl -sL https://git.io/goreleaser | bash
