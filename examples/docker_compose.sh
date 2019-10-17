@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2019 Hadrien Chauvin
+
 set -eou pipefail
 
 source "examples/executor.sh"

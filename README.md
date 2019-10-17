@@ -1,6 +1,6 @@
 # `name_manager`: Utility to manage shared test resources with a global lock
 
-[![CircleCI](https://circleci.com/gh/hchauvin/name_manager.svg?style=svg)](https://circleci.com/gh/hchauvin/name_manager) [![GoDoc](https://godoc.org/github.com/hchauvin/name_manager?status.svg)](https://godoc.org/github.com/hchauvin/name_manager) [![Coverage Status](https://coveralls.io/repos/github/hchauvin/name_manager/badge.svg?branch=master)](https://coveralls.io/github/hchauvin/name_manager?branch=master) [![Go Report Card](https://goreportcard.com/badge/hchauvin/name_manager)](https://goreportcard.com/report/hchauvin/name_manager)
+[![CircleCI](https://circleci.com/gh/hchauvin/name_manager.svg?style=svg)](https://circleci.com/gh/hchauvin/name_manager) [![GoDoc](https://godoc.org/github.com/hchauvin/name_manager?status.svg)](https://godoc.org/github.com/hchauvin/name_manager) [![Coverage Status](https://coveralls.io/repos/github/hchauvin/name_manager/badge.svg?branch=master)](https://coveralls.io/github/hchauvin/name_manager?branch=master) [![Go Report Card](https://goreportcard.com/badge/github.com/hchauvin/name_manager)](https://goreportcard.com/report/github.com/hchauvin/name_manager)
 
 Tests should ideally set up and tear down all the resources they use.
 However, sometimes these resources are too expensive and they must be shared.

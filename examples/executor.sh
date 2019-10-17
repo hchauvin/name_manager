@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2019 Hadrien Chauvin
+
 function name_manager {
   ./bin/name_manager "$@"
 }
