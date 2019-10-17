@@ -1,6 +1,7 @@
 package local_backend
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -18,7 +19,7 @@ func TestExpandHome(t *testing.T) {
 		path, err := expandHome("~/foo")
 		assert.Nil(t, err)
 		assert.NotEqual(t, "~/foo", path)
-		assert.True(t, strings.HasSuffix(path, "/foo"), "path must end with /foo")
+		assert.True(t, strings.HasSuffix(path, string(filepath.Separator)+"foo"), "path must end with /foo")
 	}
 
 	{

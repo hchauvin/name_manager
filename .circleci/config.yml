@@ -24,7 +24,7 @@ executors:
 jobs:
   test-linux:
     docker:
-      - image: circleci/golang:1.10
+      - image: circleci/golang:1.13
     steps:
       - checkout
       - run: go test -v ./...
@@ -37,23 +37,48 @@ jobs:
           name: Examples
           command: |
             examples/simple.sh
+      - run:
+          name: Code coverage
+          command: |
+            go test -v -covermode=count -coverprofile=coverage.out ./...
+            go install github.com/mattn/goveralls
+            goveralls -coverprofile=coverage.out -service=circleci-ci -repotoken=$COVERALLS_TOKEN
+      - persist_to_workspace:
+          root: '.'
+          paths:
+            - bin
+  test-linux-docker-compose:
+    machine: true
+    steps:
+      - checkout
+      - attach_workspace:
+          at: '.'
+      - run:
+          name: Examples
+          command: |
             examples/docker_compose.sh
   test-darwin:
     macos:
       xcode: 9.3.0
     steps:
       - checkout
-      - run: go test -v ./...
+      - run:
+          name: Install Go
+          command: |
+            GOLANG_VERSION=1.13.1
+            goRelArch=darwin-amd64
+            url="https://golang.org/dl/go${GOLANG_VERSION}.${goRelArch}.tar.gz"
+            curl -L $url | tar -C ~ -xzf -
+      - run: ~/go/bin/go test -v ./...
       - run:
           name: Build CLI
           command: |
             mkdir bin
-            go build -o bin/name_manager github.com/hchauvin/name_manager/cmd/name_manager
+            ~/go/bin/go build -o bin/name_manager github.com/hchauvin/name_manager/cmd/name_manager
       - run:
           name: Examples
           command: |
             examples/simple.sh
-            examples/docker_compose.sh
   test-windows:
     executor:
       name: vs2019
@@ -75,9 +100,24 @@ workflows:
           filters:
             tags:
               only: /^v.*/
+      - test-linux-docker-compose:
+          requires:
+            - test-linux
+          filters:
+            tags:
+              only: /^v.*/
+      - test-darwin:
+          filters:
+            tags:
+              only: /^v.*/
+      - test-windows:
+          filters:
+            tags:
+              only: /^v.*/
       - release:
           requires:
             - test-linux
+            - test-linux-docker-compose
             - test-darwin
             - test-windows
           filters:
