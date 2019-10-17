@@ -1,0 +1,16 @@
+builds:
+  -
+    id: name_manager
+    main: ./cmd/name_manager/name_manager.go
+    binary: bin/name_manager
+    goos:
+      - linux
+      - darwin
+      - windows
+archives:
+  -
+    id: name_manager
+    builds:
+      - name_manager
+    format: binary
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
