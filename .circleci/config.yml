@@ -27,6 +27,7 @@ jobs:
       - image: circleci/golang:1.10
     steps:
       - checkout
+      - run: go get -u -v ./...
       - run: go test -v ./...
       - run:
           name: Build CLI
