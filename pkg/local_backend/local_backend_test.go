@@ -56,6 +56,22 @@ func TestAcquireForDifferentFamilies(t *testing.T) {
 	assert.Equal(t, "0", nameBar)
 }
 
+func TestAcquireReleaseThenAcquireForAnotherFamily(t *testing.T) {
+	mng := createTestNameManager(t)
+	defer mng.Reset()
+
+	nameFoo, err := mng.Acquire("foo")
+	assert.Nil(t, err)
+	assert.Equal(t, "0", nameFoo)
+
+	err = mng.Release("foo", "0")
+	assert.Nil(t, err)
+
+	nameBar, err := mng.Acquire("bar")
+	assert.Nil(t, err)
+	assert.Equal(t, "0", nameBar)
+}
+
 func TestAcquireAcquireReleaseAcquireAcquire(t *testing.T) {
 	mng := createTestNameManager(t)
 	defer mng.Reset()

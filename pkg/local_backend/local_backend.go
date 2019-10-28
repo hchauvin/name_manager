@@ -4,6 +4,7 @@
 package local_backend
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -202,9 +203,18 @@ func acquire(tx *bolt.Tx, clk clock.Clock, family string) (string, error) {
 	return name, nil
 }
 
-// acquire implements name release inside a Bolt transaction.
+// release implements name release inside a Bolt transaction.
 func release(tx *bolt.Tx, family, name string) error {
 	if isNameFree(tx, family, name) {
+		return nil
+	}
+	// We only add a free name if the name has some data associated to
+	// it.
+	dat, err := getData(tx, family, name)
+	if err != nil {
+		return err
+	}
+	if dat == nil {
 		return nil
 	}
 	return addFreeName(tx, family, name)
@@ -249,13 +259,18 @@ func getAnyFreeName(tx *bolt.Tx, family string) ([]byte, error) {
 	if k == nil {
 		return nil, nil
 	}
-	return k[len(family)+1:], nil
+	if !bytes.HasPrefix(k, prefix) {
+		return nil, nil
+	}
+	return k[len(prefix):], nil
 }
 
 // isNameFree returns whether a name is free.
 func isNameFree(tx *bolt.Tx, family string, name string) bool {
 	b := tx.Bucket(freeNamesBucket)
 	if b == nil {
+		// If there is no freeNames bucket, it means that getAnyFreeName
+		// was never called.  Therefore, the name is considered free.
 		return true
 	}
 	v := b.Get(familyNameToKey(family, name))
