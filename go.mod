@@ -6,9 +6,8 @@ require (
 	github.com/benbjohnson/clock v1.0.0
 	github.com/dustin/go-humanize v1.0.0
 	github.com/etcd-io/bbolt v1.3.3
-	github.com/mattn/go-runewidth v0.0.4 // indirect
 	github.com/mattn/goveralls v0.0.3 // indirect
-	github.com/olekukonko/tablewriter v0.0.1
+	github.com/olekukonko/tablewriter v0.0.2
 	github.com/stretchr/testify v1.4.0
 	github.com/urfave/cli v1.22.1
 	go.etcd.io/bbolt v1.3.3 // indirect
