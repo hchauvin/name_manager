@@ -34,8 +34,16 @@ func TestCreateFromURL(t *testing.T) {
 	assert.Equal(t, "foo", name)
 }
 
+func (tnm *testNameManager) Hold(family string) (string, ReleaseFunc, error) {
+	return "foo", nil, nil
+}
+
 func (tnm *testNameManager) Acquire(family string) (string, error) {
 	return "foo", nil
+}
+
+func (tnm *testNameManager) KeepAlive(family, name string) error {
+	return nil
 }
 
 func (tnm *testNameManager) Release(family, name string) error {

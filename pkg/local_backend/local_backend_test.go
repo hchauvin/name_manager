@@ -5,6 +5,7 @@ package local_backend
 
 import (
 	"io/ioutil"
+	"strings"
 	"testing"
 	"time"
 
@@ -156,10 +157,84 @@ func TestList(t *testing.T) {
 	assert.ElementsMatch(t, expectedNames, names)
 }
 
-func createTestNameManager(t *testing.T) name_manager.NameManager {
+func TestKeepAlive(t *testing.T) {
+	mng := createTestNameManager(t, "autoReleaseAfter=15s")
+	defer mng.Reset()
+
+	mockClock := clock.NewMock()
+	mng.(*localBackend).clock = mockClock
+
+	name, err := mng.Acquire("foo")
+	assert.NoError(t, err)
+	assert.Equal(t, "0", name)
+
+	mockClock.Add(5 * time.Second)
+
+	// When the auto-release period is not past, a new name is acquired
+	name, err = mng.Acquire("foo")
+	assert.NoError(t, err)
+	assert.Equal(t, "1", name)
+
+	mockClock.Add(12 * time.Second)
+
+	// After 17 seconds, the first name is auto-released and
+	// acquired again
+	name, err = mng.Acquire("foo")
+	assert.NoError(t, err)
+	assert.Equal(t, "0", name)
+}
+
+func TestHold(t *testing.T) {
+	mng := createTestNameManager(t, "autoReleaseAfter=15s")
+	defer mng.Reset()
+
+	mockClock := clock.NewMock()
+	mng.(*localBackend).clock = mockClock
+
+	name, release, err := mng.Hold("foo")
+	assert.NoError(t, err)
+	assert.Equal(t, "0", name)
+
+	names, err := mng.List()
+	assert.NoError(t, err)
+	assert.Len(t, names, 1)
+	assert.Equal(t, "foo", names[0].Family)
+	assert.Equal(t, "0", names[0].Name)
+	assert.Equal(t, false, names[0].Free)
+
+	mockClock.Add(20 * time.Second)
+
+	// The name is still there, and not free, past the auto-release
+	// period
+	names, err = mng.List()
+	assert.NoError(t, err)
+	assert.Len(t, names, 1)
+	assert.Equal(t, "foo", names[0].Family)
+	assert.Equal(t, "0", names[0].Name)
+	assert.Equal(t, false, names[0].Free)
+
+	err = release()
+	assert.NoError(t, err)
+
+	// The name has been freed
+	names, err = mng.List()
+	assert.NoError(t, err)
+	assert.Len(t, names, 1)
+	assert.Equal(t, "foo", names[0].Family)
+	assert.Equal(t, "0", names[0].Name)
+	assert.Equal(t, true, names[0].Free)
+}
+
+func createTestNameManager(t *testing.T, options ...string) name_manager.NameManager {
 	tmpfile, err := ioutil.TempFile("", "example")
 	assert.Nil(t, err)
-	manager, err := createNameManager(tmpfile.Name())
+	var url strings.Builder
+	url.WriteString(tmpfile.Name())
+	for _, option := range options {
+		url.WriteRune(';')
+		url.WriteString(option)
+	}
+	manager, err := createNameManager(url.String())
 	assert.Nil(t, err)
 	return manager
 }

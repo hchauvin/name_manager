@@ -38,13 +38,14 @@ func init() {
 }
 
 func createNameManager(backendURL string) (name_manager.NameManager, error) {
-	path, err := expandHome(backendURL)
+	path, options, err := parseBackendURL(backendURL)
 	if err != nil {
 		return nil, err
 	}
 	return &localBackend{
-		path:  path,
-		clock: clock.New(),
+		path:    path,
+		clock:   clock.New(),
+		options: *options,
 	}, nil
 }
 
@@ -53,15 +54,18 @@ type localBackend struct {
 	path string
 	// clock is the clock used to get the CreatedAt/UpdatedAt timestamps.
 	clock clock.Clock
+	// options are the options for the backend.
+	options options
 }
 
+// localBackendData contains the metadata associated to a name.
 type localBackendData struct {
 	// CreatedAt is the time at which the name was created.
 	// It is marshalled to the RFC3339 format.
 	CreatedAt time.Time `json:"createdAt"`
 	// Update is the time at which the name was updated.  This time is
 	// not changed when the name is released, only when it is acquired
-	// again.  It is marshalled to the RFC3339 format.
+	// again or kept alive.  It is marshalled to the RFC3339 format.
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
@@ -93,6 +97,46 @@ var (
 	freeValue = []byte("free")
 )
 
+func (lbk *localBackend) Hold(family string) (string, name_manager.ReleaseFunc, error) {
+	name, err := lbk.Acquire(family)
+	if err != nil {
+		return "", nil, err
+	}
+
+	stopKeepAlive := make(chan struct{})
+	keepAliveDone := make(chan struct{})
+	if lbk.options.autoReleaseAfter > 0 {
+		go func() {
+			for {
+				select {
+				case <-stopKeepAlive:
+					keepAliveDone <- struct{}{}
+					break
+				case <-lbk.clock.After(lbk.options.autoReleaseAfter / 3):
+				}
+
+				if err := lbk.KeepAlive(family, name); err != nil {
+					fmt.Fprintf(os.Stderr, "cannot keep alive %s:%s: %v\n", family, name, err)
+					break
+				}
+			}
+		}()
+	}
+
+	releaseFunc := func() error {
+		if lbk.options.autoReleaseAfter > 0 {
+			stopKeepAlive <- struct{}{}
+			<-keepAliveDone
+		}
+		if err := lbk.Release(family, name); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	return name, releaseFunc, nil
+}
+
 func (lbk *localBackend) Acquire(family string) (string, error) {
 	db, err := lbk.openDB()
 	if err != nil {
@@ -102,6 +146,11 @@ func (lbk *localBackend) Acquire(family string) (string, error) {
 
 	name := ""
 	if err := db.Update(func(tx *bolt.Tx) error {
+		if autoReleaseAfter := lbk.options.autoReleaseAfter; autoReleaseAfter > 0 {
+			if err := releaseZombies(tx, lbk.clock, autoReleaseAfter, family); err != nil {
+				return err
+			}
+		}
 		n, err := acquire(tx, lbk.clock, family)
 		if err != nil {
 			return err
@@ -112,6 +161,18 @@ func (lbk *localBackend) Acquire(family string) (string, error) {
 		return "", err
 	}
 	return name, nil
+}
+
+func (lbk *localBackend) KeepAlive(family, name string) error {
+	db, err := lbk.openDB()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	return db.Update(func(tx *bolt.Tx) error {
+		return keepAlive(tx, lbk.clock, family, name)
+	})
 }
 
 func (lbk *localBackend) Release(family, name string) error {
@@ -203,6 +264,26 @@ func acquire(tx *bolt.Tx, clk clock.Clock, family string) (string, error) {
 	return name, nil
 }
 
+// keepAlive implements keep alive inside a Bolt transaction.
+func keepAlive(tx *bolt.Tx, clk clock.Clock, family, name string) error {
+	if isNameFree(tx, family, name) {
+		return nil
+	}
+	// We only keep alive if the name has some data associated to it.
+	data, err := getData(tx, family, name)
+	if err != nil {
+		return err
+	}
+	if data == nil {
+		return nil
+	}
+	data.UpdatedAt = clk.Now().UTC()
+	if err = setData(tx, family, name, data); err != nil {
+		return err
+	}
+	return nil
+}
+
 // release implements name release inside a Bolt transaction.
 func release(tx *bolt.Tx, family, name string) error {
 	if isNameFree(tx, family, name) {
@@ -245,6 +326,32 @@ func list(tx *bolt.Tx) ([]name_manager.Name, error) {
 	}
 
 	return names, nil
+}
+
+func releaseZombies(tx *bolt.Tx, clk clock.Clock, autoReleaseAfter time.Duration, family string) error {
+	b, err := tx.CreateBucketIfNotExists(dataBucket)
+	if err != nil {
+		return err
+	}
+	now := clk.Now()
+	prefix := []byte(family + familyNameSep)
+	c := b.Cursor()
+	for k, v := c.Seek(prefix); k != nil; k, v = c.Next() {
+		if !bytes.HasPrefix(k, prefix) {
+			break
+		}
+		data := &localBackendData{}
+		if err := json.Unmarshal(v, data); err != nil {
+			return err
+		}
+		if now.Sub(data.UpdatedAt) > autoReleaseAfter {
+			_, name := keyToFamilyName(k)
+			if err := release(tx, family, name); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // getAnyFreeName returns any free name for the given family, or `nil`

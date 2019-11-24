@@ -11,10 +11,28 @@ import (
 // NameManager objects are responsible for the acquisition and release
 // of names with a global lock.
 type NameManager interface {
+	// Hold acquires a name for the given family, returns it, and keep
+	// it alive until the release function is called (this call also
+	// releases the name).  Thanks to a global lock, a given name cannot
+	// be acquired twice for the same family without having been released
+	// first.  Using Hold in the background is almost always preferable
+	// to calling directly Acquire, KeepAlive, and Release, which are
+	// low-level.
+	Hold(family string) (string, ReleaseFunc, error)
+
 	// Acquire acquires a name for the given family, and returns it.
 	// Thanks to a global lock, a given name cannot be acquired twice for
-	// the same family without having been released first.
+	// the same family without having been released first.  After being
+	// acquired, a name must be kept alive, otherwise it can automatically
+	// released after a certain time.  The automatic release is
+	// backend-specific.
 	Acquire(family string) (string, error)
+
+	// KeepAlive produces a heart beat to avoid a name being automatically
+	// released after a certain time.  KeepAlive helps to avoid zombies.
+	// Note that automatic release does NOT have to be implemented by a
+	// backend.
+	KeepAlive(family, name string) error
 
 	// Release releases a name previously registered for a family.
 	// It is not an error to release a name that has already been released,
@@ -30,6 +48,10 @@ type NameManager interface {
 	// `nil`.
 	Reset() error
 }
+
+// ReleaseFunc is called to release a name that was acquired and kept
+// alive through `NameManager.Hold`.
+type ReleaseFunc func() error
 
 // Name describes a name as registered with a `NameManager`.
 type Name struct {

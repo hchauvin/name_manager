@@ -27,6 +27,14 @@ jobs:
       - image: circleci/golang:1.13
     steps:
       - checkout
+      - run:
+          name: Gofmt
+          command: |
+            badFormat=$(gofmt -l .)
+            if [ ! -z "$badFormat" ]; then
+              echo "ERROR: gofmt: bad format:\n$badFormat"
+              exit 1
+            fi
       - run: go test -v ./...
       - run:
           name: Build CLI
@@ -37,6 +45,7 @@ jobs:
           name: Examples
           command: |
             examples/simple.sh
+            go run examples/hold.go
       - run:
           name: Code coverage
           command: |
@@ -79,13 +88,23 @@ jobs:
           name: Examples
           command: |
             examples/simple.sh
+            ~/go/bin/go run examples/hold.go
   test-windows:
     executor:
       name: vs2019
     steps:
       - checkout
       - run: go test -v ./...
-    # TODO: Run examples on Windows
+      - run:
+          name: Build CLI
+          command: |
+            mkdir bin
+            go build -o bin/name_manager.exe github.com/hchauvin/name_manager/cmd/name_manager
+      - run:
+          name: Examples
+          # TODO: Run additional examples on Windows
+          command: |
+            go run examples/hold.go
   release:
     docker:
       - image: circleci/golang:1.13
