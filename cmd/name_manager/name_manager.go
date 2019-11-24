@@ -4,10 +4,10 @@
 package main
 
 import (
+	"github.com/urfave/cli"
 	"log"
 	"os"
-
-	"github.com/urfave/cli"
+	"os/signal"
 
 	"fmt"
 
@@ -65,6 +65,29 @@ func main() {
 	}
 
 	app.Commands = []cli.Command{
+		{
+			Name:  "hold",
+			Usage: "holds a name for a given family, releasing it on Ctl-C",
+			Action: func(c *cli.Context) error {
+				nameManager, err := getNameManager(c)
+				if err != nil {
+					return err
+				}
+				family := c.Args().Get(0)
+				name, release, err := nameManager.Hold(family)
+				if err != nil {
+					return err
+				}
+				fmt.Println(name)
+				sig := make(chan os.Signal)
+				signal.Notify(sig, os.Interrupt)
+				<-sig
+				if err := release(); err != nil {
+					return err
+				}
+				return nil
+			},
+		},
 		{
 			Name:  "acquire",
 			Usage: "acquires a name for a given family",
