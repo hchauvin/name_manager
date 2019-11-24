@@ -9,6 +9,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.3
 	github.com/stretchr/testify v1.4.0
 	github.com/urfave/cli v1.22.2
+	github.com/urfave/cli/v2 v2.0.0
 	go.etcd.io/bbolt v1.3.3 // indirect
 	golang.org/x/sys v0.0.0-20190215142949-d0b11bdaac8a // indirect
 )
