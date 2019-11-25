@@ -8,23 +8,10 @@ import (
 )
 
 type options struct {
-	uri string
-	database string
+	uri              string
+	database         string
 	collectionPrefix string
 	autoReleaseAfter time.Duration
-	variant variant
-}
-
-type variant int
-
-const (
-	genericVariant variant = iota
-	cosmosDBVariant
-)
-
-var stringToVariant = map[string]variant{
-	"generic": genericVariant,
-	"cosmosDB": cosmosDBVariant,
 }
 
 func parseBackendURL(backendURL string) (*options, error) {
@@ -54,13 +41,6 @@ func parseBackendURL(backendURL string) (*options, error) {
 			if err != nil {
 				return nil, fmt.Errorf("cannot parse duration for autoReleaseAfter: %v", err)
 			}
-
-		case "variant":
-			variant, ok := stringToVariant[value]
-			if !ok {
-				return nil, fmt.Errorf("unrecognized variant '%s'", value)
-			}
-			opts.variant = variant
 
 		default:
 			return nil, fmt.Errorf("unrecognized option \"%s\"", key)

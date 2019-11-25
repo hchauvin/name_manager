@@ -16,6 +16,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 
 	_ "github.com/hchauvin/name_manager/pkg/local_backend"
+	_ "github.com/hchauvin/name_manager/pkg/mongo_backend"
 )
 
 var (

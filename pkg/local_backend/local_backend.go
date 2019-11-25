@@ -316,12 +316,17 @@ func list(tx *bolt.Tx) ([]name_manager.Name, error) {
 		if err := json.Unmarshal(v, &data); err != nil {
 			return nil, err
 		}
+		free := isNameFree(tx, family, name)
+		var updatedAt time.Time
+		if !free {
+			updatedAt = data.UpdatedAt
+		}
 		names = append(names, name_manager.Name{
 			Name:      name,
 			Family:    family,
 			CreatedAt: data.CreatedAt,
-			UpdatedAt: data.UpdatedAt,
-			Free:      isNameFree(tx, family, name),
+			UpdatedAt: updatedAt,
+			Free:      free,
 		})
 	}
 

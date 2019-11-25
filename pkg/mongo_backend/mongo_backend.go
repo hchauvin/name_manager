@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"github.com/benbjohnson/clock"
+	"github.com/hchauvin/name_manager/pkg/name_manager"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	mongo_options "go.mongodb.org/mongo-driver/mongo/options"
-	"github.com/hchauvin/name_manager/pkg/name_manager"
 	"os"
 	"strconv"
 	"time"
@@ -32,6 +32,7 @@ func createNameManager(backendURL string) (name_manager.NameManager, error) {
 		return nil, err
 	}
 	return &mongoBackend{
+		clock:   clock.New(),
 		options: *options,
 	}, nil
 }
@@ -117,33 +118,8 @@ func (mbk *mongoBackend) Acquire(family string) (string, error) {
 
 	db := client.Database(mbk.options.database)
 
-	// Let's create or remove the TTL index
-	var ttlIndexField string
-	if mbk.options.variant == cosmosDBVariant {
-		// https://docs.microsoft.com/bs-latn-ba/azure/cosmos-db/mongodb-time-to-live
-		ttlIndexField = "_ts"
-	} else {
-		ttlIndexField = "lastHeartBeatData"
-	}
-	if mbk.options.autoReleaseAfter > 0 {
-		_, err = mbk.collection(db, leasedNamesCollection).
-			Indexes().
-			CreateOne(ctx, mongo.IndexModel{
-				Keys: bson.M{ttlIndexField: 1},
-				Options: mongo_options.
-					Index().
-					SetExpireAfterSeconds(int32(mbk.options.autoReleaseAfter.Seconds())),
-			})
-		if err != nil {
-			return "", err
-		}
-	} else {
-		_, err = mbk.collection(db, leasedNamesCollection).
-			Indexes().
-			DropAll(ctx)
-		if err != nil {
-			return "", err
-		}
+	if err := mbk.releaseZombies(ctx, db, family); err != nil {
+		return "", err
 	}
 
 	result, err := mbk.collection(db, dataCollection).
@@ -159,11 +135,14 @@ func (mbk *mongoBackend) Acquire(family string) (string, error) {
 		curName := result.Current.Lookup("name").StringValue()
 
 		// Let's try to get a lease on this name.
+		now := mbk.clock.Now()
 		document := bson.M{
-			"_id":       mbk.leaseId(family, curName),
+			"_id": mbk.leaseId(family, curName),
 			// partition is used by CosmosDB.
-			"partition": "partition",
-			"lastHeartBeatDate": mbk.clock.Now(),
+			"partition":         "partition",
+			"createdAt":         now,
+			"lastHeartBeatDate": now,
+			"family":            family,
 		}
 		_, err = mbk.collection(db, leasedNamesCollection).
 			InsertOne(ctx, document)
@@ -198,22 +177,29 @@ func (mbk *mongoBackend) Acquire(family string) (string, error) {
 			ctx,
 			bson.M{"family": family},
 			bson.M{"$inc": bson.M{"counter": 1}},
-			mongo_options.FindOneAndUpdate().SetUpsert(true))
-	if counterResult.Err() != nil {
+			mongo_options.FindOneAndUpdate().SetUpsert(true).SetReturnDocument(mongo_options.Before))
+	var counter int32
+	if counterResult.Err() == mongo.ErrNoDocuments {
+		counter = 0 // Redundant, but clearer
+	} else if counterResult.Err() != nil {
 		return "", err
+	} else {
+		counterDoc, err := counterResult.DecodeBytes()
+		if err != nil {
+			return "", err
+		}
+		counter = counterDoc.Lookup("counter").Int32()
 	}
-	counterDoc, err := counterResult.DecodeBytes()
-	if err != nil {
-		return "", err
-	}
-	counter := counterDoc.Lookup("counter").Int64()
 
 	newName := strconv.Itoa(int(counter))
 
+	now := mbk.clock.Now()
 	document := bson.M{
-		"_id":       mbk.leaseId(family, newName),
-		"partition": lockDocumentPartition,
-		"lastHeartBeatDate": mbk.clock.Now(),
+		"_id":               mbk.leaseId(family, newName),
+		"partition":         lockDocumentPartition,
+		"createdAt":         now,
+		"lastHeartBeatDate": now,
+		"family":            family,
 	}
 	_, err = mbk.collection(db, leasedNamesCollection).
 		InsertOne(ctx, document)
@@ -222,8 +208,9 @@ func (mbk *mongoBackend) Acquire(family string) (string, error) {
 	}
 
 	document = bson.M{
-		"family": family,
-		"name": newName,
+		"family":    family,
+		"name":      newName,
+		"createdAt": now,
 	}
 	_, err = mbk.collection(db, dataCollection).
 		InsertOne(ctx, document)
@@ -303,25 +290,27 @@ func (mbk *mongoBackend) List() ([]name_manager.Name, error) {
 				"_id":       mbk.leaseId(family, name),
 				"partition": lockDocumentPartition,
 			})
-		if leaseResult.Err() != nil {
-			return nil, err
-		}
 		var updatedAt time.Time
 		free := true
-		leaseDocument, err := leaseResult.DecodeBytes()
-		if err == nil {
-			updatedAt = leaseDocument.Lookup("_id").ObjectID().Timestamp()
+		if err := leaseResult.Err(); err != nil {
+			if err != mongo.ErrNoDocuments {
+				return nil, err
+			}
+		} else {
+			leaseDocument, err := leaseResult.DecodeBytes()
+			if err != nil {
+				return nil, err
+			}
+			updatedAt = leaseDocument.Lookup("createdAt").Time().UTC()
 			free = false
-		} else if err != mongo.ErrNoDocuments {
-			return nil, err
 		}
 
 		names = append(names, name_manager.Name{
-			Name: name,
-			Family: family,
-			CreatedAt: result.Current.Lookup("_id").ObjectID().Timestamp(),
+			Name:      name,
+			Family:    family,
+			CreatedAt: result.Current.Lookup("createdAt").Time().UTC(),
 			UpdatedAt: updatedAt,
-			Free: free,
+			Free:      free,
 		})
 	}
 
@@ -359,4 +348,23 @@ func (mbk *mongoBackend) collection(db *mongo.Database, name string) *mongo.Coll
 
 func (mbk *mongoBackend) leaseId(family, name string) string {
 	return "_" + mbk.options.collectionPrefix + "lock_" + family + name
+}
+
+func (mbk *mongoBackend) releaseZombies(ctx context.Context, db *mongo.Database, family string) error {
+	if mbk.options.autoReleaseAfter == 0 {
+		return nil
+	}
+	deadline := mbk.clock.Now().Add(-mbk.options.autoReleaseAfter)
+	deleteResult, err := mbk.collection(db, leasedNamesCollection).
+		DeleteMany(ctx, bson.M{
+			"lastHeartBeatDate": bson.M{"$lt": deadline},
+			"family":            family,
+		})
+	if err != nil {
+		return err
+	}
+	if n := deleteResult.DeletedCount; n > 0 {
+		fmt.Fprintf(os.Stderr, "Released %d zombies\n", n)
+	}
+	return nil
 }
