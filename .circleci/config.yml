@@ -25,9 +25,9 @@ jobs:
   test-linux:
     docker:
       - image: circleci/golang:1.13
-      - image: circleci/mongo:4.2.1
         environment:
           MONGO_URI: "mongodb://127.0.0.1:27017"
+      - image: circleci/mongo:4.2.1
     steps:
       - checkout
       - run:
