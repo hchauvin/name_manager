@@ -1,14 +1,13 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2019 Hadrien Chauvin
-
-package local_backend
+package mongo_backend
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"github.com/benbjohnson/clock"
 	"github.com/hchauvin/name_manager/pkg/name_manager"
 	"github.com/hchauvin/name_manager/pkg/testutil"
 	"github.com/stretchr/testify/assert"
-	"io/ioutil"
+	"os"
 	"strings"
 	"testing"
 )
@@ -40,29 +39,38 @@ func TestAcquireAcquireReleaseAcquireAcquire(t *testing.T) {
 func TestList(t *testing.T) {
 	mng := createTestNameManager(t)
 	mockClock := clock.NewMock()
-	mng.(*localBackend).clock = mockClock
+	mng.(*mongoBackend).clock = mockClock
 	testutil.TestList(t, mng, mockClock)
 }
 
 func TestKeepAlive(t *testing.T) {
 	mng := createTestNameManager(t, "autoReleaseAfter=5s")
 	mockClock := clock.NewMock()
-	mng.(*localBackend).clock = mockClock
+	mng.(*mongoBackend).clock = mockClock
 	testutil.TestKeepAlive(t, mng, mockClock)
 }
 
 func TestHold(t *testing.T) {
 	mng := createTestNameManager(t, "autoReleaseAfter=5s")
 	mockClock := clock.NewMock()
-	mng.(*localBackend).clock = mockClock
+	mng.(*mongoBackend).clock = mockClock
 	testutil.TestHold(t, mng, mockClock)
 }
 
 func createTestNameManager(t *testing.T, options ...string) name_manager.NameManager {
-	tmpfile, err := ioutil.TempFile("", "example")
-	assert.Nil(t, err)
+	uri := os.Getenv("MONGODB_URI")
+	// uri := "mongodb://127.0.0.1:27017"
+	if uri == "" {
+		t.Skip("No MongoDB")
+		return nil
+	}
+	db, err := randomHex(10)
+	if err != nil {
+		panic(err)
+	}
+
 	var url strings.Builder
-	url.WriteString(tmpfile.Name())
+	url.WriteString("uri=" + uri + ";database=" + db + ";collectionPrefix=nm_")
 	for _, option := range options {
 		url.WriteRune(';')
 		url.WriteString(option)
@@ -70,4 +78,12 @@ func createTestNameManager(t *testing.T, options ...string) name_manager.NameMan
 	manager, err := createNameManager(url.String())
 	assert.Nil(t, err)
 	return manager
+}
+
+func randomHex(n int) (string, error) {
+	bytes := make([]byte, n)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes), nil
 }

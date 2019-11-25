@@ -23,7 +23,8 @@ Command-Line Interface (CLI).
 ## Example use
 
 By default, the `name_manager` uses the local file system as an
-inter-process lock.
+inter-process lock.  There is also a MongoDB backend, which can be used,
+e.g., with Azure CosmosDB.
 
 As an example use, let's pretend we have a bunch of end-to-end tests on
 a webapp.  These tests run on a full app that is deployed with
@@ -72,6 +73,20 @@ wait
 
 `name_manager` enables a generalization of this reasoning.  See the
 `./examples` directory for examples.
+
+## Development
+
+`name_manager` is compiled with Go 1.13.
+
+The integration tests for the mongo backend require a MongoDB server to
+be running locally:
+
+```bash
+docker run --name some-mongo -p 27017:27017 mongo:bionic
+
+export MONGODB_URI="mongodb://127.0.0.1:27017"
+go test -v ./pkg/mongo_backend/...
+```
 
 ## License
 
