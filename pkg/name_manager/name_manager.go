@@ -60,7 +60,6 @@ type Name struct {
 
 	// Family is the name family the name belongs to.  Names are unique
 	// within the same family.
-
 	Family string
 
 	// CreatedAt is the timestamp at which the name was first registered.
