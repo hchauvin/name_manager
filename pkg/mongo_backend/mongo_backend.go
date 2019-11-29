@@ -258,6 +258,95 @@ func (mbk *mongoBackend) Release(family, name string) error {
 	return err
 }
 
+func (mbk *mongoBackend) TryHold(family, name string) (name_manager.ReleaseFunc, error) {
+	if err := mbk.TryAcquire(family, name); err != nil {
+		return nil, err
+	}
+
+	stopKeepAlive := make(chan struct{})
+	keepAliveDone := make(chan struct{})
+	if mbk.options.autoReleaseAfter > 0 {
+		go func() {
+			for {
+				select {
+				case <-stopKeepAlive:
+					keepAliveDone <- struct{}{}
+					break
+				case <-mbk.clock.After(mbk.options.autoReleaseAfter / 3):
+				}
+
+				if err := mbk.KeepAlive(family, name); err != nil {
+					fmt.Fprintf(os.Stderr, "cannot keep alive %s:%s: %v\n", family, name, err)
+					break
+				}
+			}
+		}()
+	}
+
+	releaseFunc := func() error {
+		if mbk.options.autoReleaseAfter > 0 {
+			stopKeepAlive <- struct{}{}
+			<-keepAliveDone
+		}
+		if err := mbk.Release(family, name); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	return releaseFunc, nil
+}
+
+func (mbk *mongoBackend) TryAcquire(family, name string) error {
+	ctx := context.Background()
+
+	client, err := mbk.client()
+	if err != nil {
+		return err
+	}
+	defer client.Disconnect(ctx)
+
+	db := client.Database(mbk.options.database)
+
+	// Let's try to get a lease on this name.
+	now := mbk.clock.Now()
+	document := bson.M{
+		"_id": mbk.leaseId(family, name),
+		// partition is used by CosmosDB.
+		"partition":         "partition",
+		"createdAt":         now,
+		"lastHeartBeatDate": now,
+		"family":            family,
+	}
+	_, err = mbk.collection(db, leasedNamesCollection).
+		InsertOne(ctx, document)
+	if err != nil {
+		return name_manager.ErrInUse
+	}
+
+	// Now, let's see if the name actually exists.
+	names, _ := mbk.List()
+	fmt.Printf("NAMES %v\n", names)
+	res := mbk.collection(db, dataCollection).
+		FindOne(ctx, bson.D{{"family", family}, {"name", name}})
+	if res.Err() != nil {
+		// The name does not exist.  Release the lease immediately.
+		_, err = mbk.collection(db, leasedNamesCollection).
+			DeleteOne(ctx, bson.D{{"_id", mbk.leaseId(family, name)}})
+		if err != nil {
+			return err
+		}
+
+		if res.Err() == mongo.ErrNoDocuments {
+			return name_manager.ErrNotExist
+		}
+		return res.Err()
+	}
+
+	// The lease was successfully acquired, and the name exists.
+	return nil
+}
+
 func (mbk *mongoBackend) List() ([]name_manager.Name, error) {
 	ctx := context.Background()
 

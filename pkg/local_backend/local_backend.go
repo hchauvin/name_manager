@@ -187,6 +187,57 @@ func (lbk *localBackend) Release(family, name string) error {
 	})
 }
 
+func (lbk *localBackend) TryHold(family, name string) (name_manager.ReleaseFunc, error) {
+	if err := lbk.TryAcquire(family, name); err != nil {
+		return nil, err
+	}
+
+	stopKeepAlive := make(chan struct{})
+	keepAliveDone := make(chan struct{})
+	if lbk.options.autoReleaseAfter > 0 {
+		go func() {
+			for {
+				select {
+				case <-stopKeepAlive:
+					keepAliveDone <- struct{}{}
+					break
+				case <-lbk.clock.After(lbk.options.autoReleaseAfter / 3):
+				}
+
+				if err := lbk.KeepAlive(family, name); err != nil {
+					fmt.Fprintf(os.Stderr, "cannot keep alive %s:%s: %v\n", family, name, err)
+					break
+				}
+			}
+		}()
+	}
+
+	releaseFunc := func() error {
+		if lbk.options.autoReleaseAfter > 0 {
+			stopKeepAlive <- struct{}{}
+			<-keepAliveDone
+		}
+		if err := lbk.Release(family, name); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	return releaseFunc, nil
+}
+
+func (lbk *localBackend) TryAcquire(family, name string) error {
+	db, err := lbk.openDB()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	return db.Update(func(tx *bolt.Tx) error {
+		return tryAcquire(tx, lbk.clock, family, name)
+	})
+}
+
 func (lbk *localBackend) List() ([]name_manager.Name, error) {
 	db, err := lbk.openDB()
 	if err != nil {
@@ -301,7 +352,32 @@ func release(tx *bolt.Tx, family, name string) error {
 	return addFreeName(tx, family, name)
 }
 
-// acquire implements name listing inside a Bolt transaction.
+// tryAcquire implements name acquisition inside a Bolt transaction.
+func tryAcquire(tx *bolt.Tx, clk clock.Clock, family, name string) error {
+	if !isNameFree(tx, family, name) {
+		return name_manager.ErrInUse
+	}
+
+	var data *localBackendData
+	now := clk.Now().UTC()
+	data, err := getData(tx, family, name)
+	if err != nil {
+		return err
+	}
+	if data == nil {
+		return name_manager.ErrNotExist
+	}
+	if err = removeFreeName(tx, family, name); err != nil {
+		return err
+	}
+	data.UpdatedAt = now
+	if err = setData(tx, family, name, data); err != nil {
+		return err
+	}
+	return nil
+}
+
+// list implements name listing inside a Bolt transaction.
 func list(tx *bolt.Tx) ([]name_manager.Name, error) {
 	var names []name_manager.Name
 

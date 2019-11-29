@@ -200,3 +200,82 @@ func TestHold(t *testing.T, mng name_manager.NameManager, mockClock *clock.Mock)
 	assert.Equal(t, "0", names[0].Name)
 	assert.Equal(t, true, names[0].Free)
 }
+
+func TestTryAcquire(t *testing.T, mng name_manager.NameManager) {
+	defer mng.Reset()
+
+	name, err := mng.Acquire("foo")
+	assert.NoError(t, err)
+	if name != "0" {
+		t.Fatal()
+	}
+
+	err = mng.TryAcquire("foo", "0")
+	assert.Error(t, err)
+
+	err = mng.Release("foo", "0")
+	assert.NoError(t, err)
+
+	err = mng.TryAcquire("foo", "0")
+	assert.NoError(t, err)
+
+	err = mng.TryAcquire("foo", "0")
+	assert.Error(t, err)
+}
+
+func TestTryAcquireErrors(t *testing.T, mng name_manager.NameManager) {
+	defer mng.Reset()
+
+	err := mng.TryAcquire("foo", "0")
+	assert.Equal(t, err, name_manager.ErrNotExist)
+
+	name, err := mng.Acquire("foo")
+	assert.NoError(t, err)
+	assert.Equal(t, name, "0")
+
+	err = mng.TryAcquire("foo", "0")
+	assert.Equal(t, err, name_manager.ErrInUse)
+}
+
+func TestTryHold(t *testing.T, mng name_manager.NameManager, mockClock *clock.Mock) {
+	defer mng.Reset()
+
+	name, err := mng.Acquire("foo")
+	assert.NoError(t, err)
+	assert.Equal(t, "0", name)
+
+	err = mng.Release("foo", "0")
+	assert.NoError(t, err)
+
+	release, err := mng.TryHold("foo", "0")
+	assert.NoError(t, err)
+
+	names, err := mng.List()
+	assert.NoError(t, err)
+	assert.Len(t, names, 1)
+	assert.Equal(t, "foo", names[0].Family)
+	assert.Equal(t, "0", names[0].Name)
+	assert.Equal(t, false, names[0].Free)
+
+	mockClock.Add(7 * time.Second)
+
+	// The name is still there, and not free, past the auto-release
+	// period
+	names, err = mng.List()
+	assert.NoError(t, err)
+	assert.Len(t, names, 1)
+	assert.Equal(t, "foo", names[0].Family)
+	assert.Equal(t, "0", names[0].Name)
+	assert.Equal(t, false, names[0].Free)
+
+	err = release()
+	assert.NoError(t, err)
+
+	// The name has been freed
+	names, err = mng.List()
+	assert.NoError(t, err)
+	assert.Len(t, names, 1)
+	assert.Equal(t, "foo", names[0].Family)
+	assert.Equal(t, "0", names[0].Name)
+	assert.Equal(t, true, names[0].Free)
+}
