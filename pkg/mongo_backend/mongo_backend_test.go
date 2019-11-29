@@ -57,6 +57,21 @@ func TestHold(t *testing.T) {
 	testutil.TestHold(t, mng, mockClock)
 }
 
+func TestTryAcquire(t *testing.T) {
+	testutil.TestTryAcquire(t, createTestNameManager(t))
+}
+
+func TestTryAcquireErrors(t *testing.T) {
+	testutil.TestTryAcquireErrors(t, createTestNameManager(t))
+}
+
+func TestTryHold(t *testing.T) {
+	mng := createTestNameManager(t, "autoReleaseAfter=5s")
+	mockClock := clock.NewMock()
+	mng.(*mongoBackend).clock = mockClock
+	testutil.TestTryHold(t, mng, mockClock)
+}
+
 func createTestNameManager(t *testing.T, options ...string) name_manager.NameManager {
 	uri := os.Getenv("MONGODB_URI")
 	// uri := "mongodb://127.0.0.1:27017"

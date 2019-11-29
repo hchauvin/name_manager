@@ -4,6 +4,7 @@
 package name_manager
 
 import (
+	"errors"
 	"fmt"
 	"time"
 )
@@ -40,6 +41,23 @@ type NameManager interface {
 	// be released can be acquired again.
 	Release(family, name string) error
 
+	// TryAcquire tries to hold a specific name.  It fails with ErrInUs
+	// if the name has already been acquired and not yet released.
+	TryHold(family, name string) (ReleaseFunc, error)
+
+	// TryAcquire tries to acquire a specific name.  It fails with
+	// ErrInUse if the name has already been acquired and not yet released.
+	// It fails with ErrNotExist if the name has not already been acquired
+	// at least once.
+	//
+	// A name acquired through TryAcquire should be kept alive with
+	// KeepAlive, then released with Release, the same way it is done
+	// with Acquire.
+	//
+	// TryAcquire can be useful, e.g., for garbage collection.
+	// (Just combine List with TryAcquire).
+	TryAcquire(family, name string) error
+
 	// List lists the names that are currently registered, either marked as
 	// `free` or not.
 	List() ([]Name, error)
@@ -48,6 +66,15 @@ type NameManager interface {
 	// `nil`.
 	Reset() error
 }
+
+// ErrInUse is returned by TryAcquire and TryHold when trying to acquire
+// or hold a name already in use.
+var ErrInUse = errors.New("name in use")
+
+// ErrNotExist is returned by TryAcquire and TryHold when trying to
+// acquire or hold a name that was not already acquired, and is thus
+// not known by the system.
+var ErrNotExist = errors.New("name does not exist")
 
 // ReleaseFunc is called to release a name that was acquired and kept
 // alive through `NameManager.Hold`.

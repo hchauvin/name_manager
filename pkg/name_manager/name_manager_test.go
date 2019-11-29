@@ -50,6 +50,14 @@ func (tnm *testNameManager) Release(family, name string) error {
 	return nil
 }
 
+func (tnm *testNameManager) TryAcquire(family, name string) error {
+	return nil
+}
+
+func (tnm *testNameManager) TryHold(family, name string) (ReleaseFunc, error) {
+	return nil, nil
+}
+
 func (tnm *testNameManager) List() ([]Name, error) {
 	return nil, nil
 }
