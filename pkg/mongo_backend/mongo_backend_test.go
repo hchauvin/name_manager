@@ -7,6 +7,7 @@ import (
 	"github.com/hchauvin/name_manager/pkg/name_manager"
 	"github.com/hchauvin/name_manager/pkg/testutil"
 	"github.com/stretchr/testify/assert"
+	"os"
 	"strings"
 	"testing"
 )
