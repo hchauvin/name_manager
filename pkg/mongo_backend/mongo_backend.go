@@ -325,8 +325,6 @@ func (mbk *mongoBackend) TryAcquire(family, name string) error {
 	}
 
 	// Now, let's see if the name actually exists.
-	names, _ := mbk.List()
-	fmt.Printf("NAMES %v\n", names)
 	res := mbk.collection(db, dataCollection).
 		FindOne(ctx, bson.D{{"family", family}, {"name", name}})
 	if res.Err() != nil {
