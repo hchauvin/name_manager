@@ -91,3 +91,5 @@ go test -v ./pkg/mongo_backend/...
 ## License
 
 `name_manager` is licensed under [The MIT License](./LICENSE).
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fhchauvin%2Fname_manager.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fhchauvin%2Fname_manager?ref=badge_large)
