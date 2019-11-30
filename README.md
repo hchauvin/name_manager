@@ -1,6 +1,7 @@
 # `name_manager`: Utility to manage shared test resources with a global lock 🔒
 
 [![CircleCI](https://circleci.com/gh/hchauvin/name_manager.svg?style=svg)](https://circleci.com/gh/hchauvin/name_manager) [![GoDoc](https://godoc.org/github.com/hchauvin/name_manager?status.svg)](https://godoc.org/github.com/hchauvin/name_manager) [![Coverage Status](https://coveralls.io/repos/github/hchauvin/name_manager/badge.svg?branch=master&t=2BEkl9)](https://coveralls.io/github/hchauvin/name_manager?branch=master) [![Go Report Card](https://goreportcard.com/badge/github.com/hchauvin/name_manager)](https://goreportcard.com/report/github.com/hchauvin/name_manager) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fhchauvin%2Fname_manager.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fhchauvin%2Fname_manager?ref=badge_shield)
 
 Tests should ideally set up and tear down all the resources they use.
 However, sometimes these resources are too expensive and they must be shared.
@@ -91,3 +92,6 @@ go test -v ./pkg/mongo_backend/...
 ## License
 
 `name_manager` is licensed under [The MIT License](./LICENSE).
+
+
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fhchauvin%2Fname_manager.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fhchauvin%2Fname_manager?ref=badge_large)
