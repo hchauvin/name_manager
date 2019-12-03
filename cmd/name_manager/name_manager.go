@@ -4,8 +4,10 @@
 package main
 
 import (
+	"github.com/hchauvin/name_manager/pkg/server"
 	"github.com/urfave/cli"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 
@@ -163,6 +165,30 @@ func main() {
 					return err
 				}
 				return nameManager.Reset()
+			},
+		},
+		{
+			Name:  "serve",
+			Usage: "serves a name manager server",
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "address",
+					Usage: "address to listen to",
+					Value: ":9008",
+				},
+			},
+			Action: func(c *cli.Context) error {
+				nameManager, err := getNameManager(c)
+				if err != nil {
+					return err
+				}
+				address := c.String("address")
+				listener, err := net.Listen("tcp", address)
+				if err != nil {
+					return err
+				}
+				fmt.Printf("Listening on %s\n", address)
+				return server.Serve(listener, nameManager)
 			},
 		},
 	}

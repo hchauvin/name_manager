@@ -1,0 +1,27 @@
+# Step 1: build executable binary
+FROM golang:1.13.4-alpine3.10@sha256:9d2a7c5b6447f525da0a4f18efd2cb05bf7d70228f75d713b7a67345f30157ac as builder
+
+RUN adduser -D -g '' appuser
+
+WORKDIR /project
+COPY . .
+
+RUN go mod download
+
+RUN CGO_ENABLED=0 GOOS=linux go test -v ./...
+
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -a -installsuffix cgo -o bin/name_manager ./cmd/name_manager
+
+# Step 1: build end product
+FROM gcr.io/distroless/static:latest@sha256:c6d5981545ce1406d33e61434c61e9452dad93ecd8397c41e89036ef977a88f4
+
+COPY --from=builder /project/bin/name_manager /name_manager
+COPY --from=builder /etc/passwd /etc/passwd
+
+USER appuser
+
+ENTRYPOINT ["/name_manager"]
+
+
+
+
