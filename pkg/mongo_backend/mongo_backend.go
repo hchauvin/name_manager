@@ -308,6 +308,10 @@ func (mbk *mongoBackend) TryAcquire(family, name string) error {
 
 	db := client.Database(mbk.options.database)
 
+	if err := mbk.releaseZombies(ctx, db, family); err != nil {
+		return err
+	}
+
 	// Let's try to get a lease on this name.
 	now := mbk.clock.Now()
 	document := bson.M{
