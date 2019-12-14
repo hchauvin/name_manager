@@ -27,7 +27,7 @@ jobs:
       - image: circleci/golang:1.13
         environment:
           MONGODB_URI: "mongodb://127.0.0.1:27017"
-      - image: circleci/mongo:4.2.1
+      - image: circleci/mongo:4.2.2
     steps:
       - checkout
       - run:
