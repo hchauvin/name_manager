@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/hchauvin/name_manager/pkg/internal/hold"
 	"os"
 	"strconv"
 	"strings"
@@ -97,44 +98,8 @@ var (
 	freeValue = []byte("free")
 )
 
-func (lbk *localBackend) Hold(family string) (string, name_manager.ReleaseFunc, error) {
-	name, err := lbk.Acquire(family)
-	if err != nil {
-		return "", nil, err
-	}
-
-	stopKeepAlive := make(chan struct{})
-	keepAliveDone := make(chan struct{})
-	if lbk.options.autoReleaseAfter > 0 {
-		go func() {
-			for {
-				select {
-				case <-stopKeepAlive:
-					keepAliveDone <- struct{}{}
-					break
-				case <-lbk.clock.After(lbk.options.autoReleaseAfter / 3):
-				}
-
-				if err := lbk.KeepAlive(family, name); err != nil {
-					fmt.Fprintf(os.Stderr, "cannot keep alive %s:%s: %v\n", family, name, err)
-					break
-				}
-			}
-		}()
-	}
-
-	releaseFunc := func() error {
-		if lbk.options.autoReleaseAfter > 0 {
-			stopKeepAlive <- struct{}{}
-			<-keepAliveDone
-		}
-		if err := lbk.Release(family, name); err != nil {
-			return err
-		}
-		return nil
-	}
-
-	return name, releaseFunc, nil
+func (lbk *localBackend) Hold(family string) (string, <-chan error, name_manager.ReleaseFunc, error) {
+	return lbk.hold().Hold(family)
 }
 
 func (lbk *localBackend) Acquire(family string) (string, error) {
@@ -187,43 +152,8 @@ func (lbk *localBackend) Release(family, name string) error {
 	})
 }
 
-func (lbk *localBackend) TryHold(family, name string) (name_manager.ReleaseFunc, error) {
-	if err := lbk.TryAcquire(family, name); err != nil {
-		return nil, err
-	}
-
-	stopKeepAlive := make(chan struct{})
-	keepAliveDone := make(chan struct{})
-	if lbk.options.autoReleaseAfter > 0 {
-		go func() {
-			for {
-				select {
-				case <-stopKeepAlive:
-					keepAliveDone <- struct{}{}
-					break
-				case <-lbk.clock.After(lbk.options.autoReleaseAfter / 3):
-				}
-
-				if err := lbk.KeepAlive(family, name); err != nil {
-					fmt.Fprintf(os.Stderr, "cannot keep alive %s:%s: %v\n", family, name, err)
-					break
-				}
-			}
-		}()
-	}
-
-	releaseFunc := func() error {
-		if lbk.options.autoReleaseAfter > 0 {
-			stopKeepAlive <- struct{}{}
-			<-keepAliveDone
-		}
-		if err := lbk.Release(family, name); err != nil {
-			return err
-		}
-		return nil
-	}
-
-	return releaseFunc, nil
+func (lbk *localBackend) TryHold(family, name string) (<-chan error, name_manager.ReleaseFunc, error) {
+	return lbk.hold().TryHold(family, name)
 }
 
 func (lbk *localBackend) TryAcquire(family, name string) error {
@@ -558,4 +488,12 @@ func keyToFamilyName(key []byte) (family string, name string) {
 	family = parts[0]
 	name = parts[1]
 	return
+}
+
+func (lbk *localBackend) hold() *hold.Hold {
+	return &hold.Hold{
+		Manager:           lbk,
+		Clock:             lbk.clock,
+		KeepAliveInterval: lbk.options.autoReleaseAfter / 3,
+	}
 }

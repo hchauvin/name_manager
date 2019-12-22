@@ -34,8 +34,8 @@ func TestCreateFromURL(t *testing.T) {
 	assert.Equal(t, "foo", name)
 }
 
-func (tnm *testNameManager) Hold(family string) (string, ReleaseFunc, error) {
-	return "foo", nil, nil
+func (tnm *testNameManager) Hold(family string) (string, <-chan error, ReleaseFunc, error) {
+	return "foo", nil, nil, nil
 }
 
 func (tnm *testNameManager) Acquire(family string) (string, error) {
@@ -54,8 +54,8 @@ func (tnm *testNameManager) TryAcquire(family, name string) error {
 	return nil
 }
 
-func (tnm *testNameManager) TryHold(family, name string) (ReleaseFunc, error) {
-	return nil, nil
+func (tnm *testNameManager) TryHold(family, name string) (<-chan error, ReleaseFunc, error) {
+	return nil, nil, nil
 }
 
 func (tnm *testNameManager) List() ([]Name, error) {

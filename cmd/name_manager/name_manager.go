@@ -77,14 +77,18 @@ func main() {
 					return err
 				}
 				family := c.Args().Get(0)
-				name, release, err := nameManager.Hold(family)
+				name, errc, release, err := nameManager.Hold(family)
 				if err != nil {
 					return err
 				}
 				fmt.Println(name)
 				sig := make(chan os.Signal)
 				signal.Notify(sig, os.Interrupt)
-				<-sig
+				select {
+				case <-sig:
+				case err := <-errc:
+					return err
+				}
 				if err := release(); err != nil {
 					return err
 				}

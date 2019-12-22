@@ -167,9 +167,14 @@ func TestKeepAlive(t *testing.T, mng name_manager.NameManager, mockClock *clock.
 func TestHold(t *testing.T, mng name_manager.NameManager, mockClock *clock.Mock) {
 	defer mng.Reset()
 
-	name, release, err := mng.Hold("foo")
+	name, errc, release, err := mng.Hold("foo")
 	assert.NoError(t, err)
 	assert.Equal(t, "0", name)
+	go func() {
+		for err := range errc {
+			assert.Fail(t, "detached error", err)
+		}
+	}()
 
 	names, err := mng.List()
 	assert.NoError(t, err)
@@ -247,8 +252,13 @@ func TestTryHold(t *testing.T, mng name_manager.NameManager, mockClock *clock.Mo
 	err = mng.Release("foo", "0")
 	assert.NoError(t, err)
 
-	release, err := mng.TryHold("foo", "0")
+	errc, release, err := mng.TryHold("foo", "0")
 	assert.NoError(t, err)
+	go func() {
+		for err := range errc {
+			assert.Fail(t, "detached error", err)
+		}
+	}()
 
 	names, err := mng.List()
 	assert.NoError(t, err)
