@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"github.com/avast/retry-go"
 	"github.com/benbjohnson/clock"
+	"github.com/hchauvin/name_manager/pkg/internal/hold"
 	"github.com/hchauvin/name_manager/pkg/name_manager"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"strings"
 )
 
@@ -55,44 +55,8 @@ type restBackend struct {
 	resetHook func()
 }
 
-func (rbk *restBackend) Hold(family string) (string, name_manager.ReleaseFunc, error) {
-	name, err := rbk.Acquire(family)
-	if err != nil {
-		return "", nil, err
-	}
-
-	stopKeepAlive := make(chan struct{})
-	keepAliveDone := make(chan struct{})
-	if rbk.options.keepAliveInterval > 0 {
-		go func() {
-			for {
-				select {
-				case <-stopKeepAlive:
-					keepAliveDone <- struct{}{}
-					break
-				case <-rbk.clock.After(rbk.options.keepAliveInterval):
-				}
-
-				if err := rbk.KeepAlive(family, name); err != nil {
-					fmt.Fprintf(os.Stderr, "cannot keep alive %s:%s: %v\n", family, name, err)
-					break
-				}
-			}
-		}()
-	}
-
-	releaseFunc := func() error {
-		if rbk.options.keepAliveInterval > 0 {
-			stopKeepAlive <- struct{}{}
-			<-keepAliveDone
-		}
-		if err := rbk.Release(family, name); err != nil {
-			return err
-		}
-		return nil
-	}
-
-	return name, releaseFunc, nil
+func (rbk *restBackend) Hold(family string) (string, <-chan error, name_manager.ReleaseFunc, error) {
+	return rbk.hold().Hold(family)
 }
 
 func (rbk *restBackend) Acquire(family string) (string, error) {
@@ -109,43 +73,8 @@ func (rbk *restBackend) Release(family, name string) error {
 	return err
 }
 
-func (rbk *restBackend) TryHold(family, name string) (name_manager.ReleaseFunc, error) {
-	if err := rbk.TryAcquire(family, name); err != nil {
-		return nil, err
-	}
-
-	stopKeepAlive := make(chan struct{})
-	keepAliveDone := make(chan struct{})
-	if rbk.options.keepAliveInterval > 0 {
-		go func() {
-			for {
-				select {
-				case <-stopKeepAlive:
-					keepAliveDone <- struct{}{}
-					break
-				case <-rbk.clock.After(rbk.options.keepAliveInterval):
-				}
-
-				if err := rbk.KeepAlive(family, name); err != nil {
-					fmt.Fprintf(os.Stderr, "cannot keep alive %s:%s: %v\n", family, name, err)
-					break
-				}
-			}
-		}()
-	}
-
-	releaseFunc := func() error {
-		if rbk.options.keepAliveInterval > 0 {
-			stopKeepAlive <- struct{}{}
-			<-keepAliveDone
-		}
-		if err := rbk.Release(family, name); err != nil {
-			return err
-		}
-		return nil
-	}
-
-	return releaseFunc, nil
+func (rbk *restBackend) TryHold(family, name string) (<-chan error, name_manager.ReleaseFunc, error) {
+	return rbk.hold().TryHold(family, name)
 }
 
 func (rbk *restBackend) TryAcquire(family, name string) error {
@@ -206,4 +135,12 @@ func (rbk *restBackend) get(endpoint string) (string, error) {
 		return "", err
 	}
 	return body, nil
+}
+
+func (rbk *restBackend) hold() *hold.Hold {
+	return &hold.Hold{
+		Manager:           rbk,
+		Clock:             rbk.clock,
+		KeepAliveInterval: rbk.options.keepAliveInterval,
+	}
 }

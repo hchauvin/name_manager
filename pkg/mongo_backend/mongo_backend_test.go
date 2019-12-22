@@ -74,7 +74,7 @@ func TestTryHold(t *testing.T) {
 
 func createTestNameManager(t *testing.T, options ...string) name_manager.NameManager {
 	uri := os.Getenv("MONGODB_URI")
-	// uri := "mongodb://127.0.0.1:27017"
+	//uri := "mongodb://127.0.0.1:27017"
 	if uri == "" {
 		t.Skip("No MongoDB")
 		return nil

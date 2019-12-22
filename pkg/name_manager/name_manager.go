@@ -18,8 +18,9 @@ type NameManager interface {
 	// be acquired twice for the same family without having been released
 	// first.  Using Hold in the background is almost always preferable
 	// to calling directly Acquire, KeepAlive, and Release, which are
-	// low-level.
-	Hold(family string) (string, ReleaseFunc, error)
+	// low-level.  Errors occurring during the keep-alive are sent to
+	// an error channel.
+	Hold(family string) (string, <-chan error, ReleaseFunc, error)
 
 	// Acquire acquires a name for the given family, and returns it.
 	// Thanks to a global lock, a given name cannot be acquired twice for
@@ -41,9 +42,11 @@ type NameManager interface {
 	// be released can be acquired again.
 	Release(family, name string) error
 
-	// TryAcquire tries to hold a specific name.  It fails with ErrInUs
+	// TryAcquire tries to hold a specific name.  It fails with ErrInUse
 	// if the name has already been acquired and not yet released.
-	TryHold(family, name string) (ReleaseFunc, error)
+	// Errors occurring during the keep-alive are sent to
+	// an error channel.
+	TryHold(family, name string) (<-chan error, ReleaseFunc, error)
 
 	// TryAcquire tries to acquire a specific name.  It fails with
 	// ErrInUse if the name has already been acquired and not yet released.

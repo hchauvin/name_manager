@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/benbjohnson/clock"
+	"github.com/hchauvin/name_manager/pkg/internal/hold"
 	"github.com/hchauvin/name_manager/pkg/name_manager"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -67,44 +68,8 @@ const lockDocumentPartition = "partition"
 
 const mongoDBDuplicateKeyErrorCode = 11000
 
-func (mbk *mongoBackend) Hold(family string) (string, name_manager.ReleaseFunc, error) {
-	name, err := mbk.Acquire(family)
-	if err != nil {
-		return "", nil, err
-	}
-
-	stopKeepAlive := make(chan struct{})
-	keepAliveDone := make(chan struct{})
-	if mbk.options.autoReleaseAfter > 0 {
-		go func() {
-			for {
-				select {
-				case <-stopKeepAlive:
-					keepAliveDone <- struct{}{}
-					break
-				case <-mbk.clock.After(mbk.options.autoReleaseAfter / 3):
-				}
-
-				if err := mbk.KeepAlive(family, name); err != nil {
-					fmt.Fprintf(os.Stderr, "cannot keep alive %s:%s: %v\n", family, name, err)
-					break
-				}
-			}
-		}()
-	}
-
-	releaseFunc := func() error {
-		if mbk.options.autoReleaseAfter > 0 {
-			stopKeepAlive <- struct{}{}
-			<-keepAliveDone
-		}
-		if err := mbk.Release(family, name); err != nil {
-			return err
-		}
-		return nil
-	}
-
-	return name, releaseFunc, nil
+func (mbk *mongoBackend) Hold(family string) (string, <-chan error, name_manager.ReleaseFunc, error) {
+	return mbk.hold().Hold(family)
 }
 
 func (mbk *mongoBackend) Acquire(family string) (string, error) {
@@ -258,43 +223,8 @@ func (mbk *mongoBackend) Release(family, name string) error {
 	return err
 }
 
-func (mbk *mongoBackend) TryHold(family, name string) (name_manager.ReleaseFunc, error) {
-	if err := mbk.TryAcquire(family, name); err != nil {
-		return nil, err
-	}
-
-	stopKeepAlive := make(chan struct{})
-	keepAliveDone := make(chan struct{})
-	if mbk.options.autoReleaseAfter > 0 {
-		go func() {
-			for {
-				select {
-				case <-stopKeepAlive:
-					keepAliveDone <- struct{}{}
-					break
-				case <-mbk.clock.After(mbk.options.autoReleaseAfter / 3):
-				}
-
-				if err := mbk.KeepAlive(family, name); err != nil {
-					fmt.Fprintf(os.Stderr, "cannot keep alive %s:%s: %v\n", family, name, err)
-					break
-				}
-			}
-		}()
-	}
-
-	releaseFunc := func() error {
-		if mbk.options.autoReleaseAfter > 0 {
-			stopKeepAlive <- struct{}{}
-			<-keepAliveDone
-		}
-		if err := mbk.Release(family, name); err != nil {
-			return err
-		}
-		return nil
-	}
-
-	return releaseFunc, nil
+func (mbk *mongoBackend) TryHold(family, name string) (<-chan error, name_manager.ReleaseFunc, error) {
+	return mbk.hold().TryHold(family, name)
 }
 
 func (mbk *mongoBackend) TryAcquire(family, name string) error {
@@ -458,4 +388,12 @@ func (mbk *mongoBackend) releaseZombies(ctx context.Context, db *mongo.Database,
 		fmt.Fprintf(os.Stderr, "Released %d zombies\n", n)
 	}
 	return nil
+}
+
+func (mbk *mongoBackend) hold() *hold.Hold {
+	return &hold.Hold{
+		Manager:           mbk,
+		Clock:             mbk.clock,
+		KeepAliveInterval: mbk.options.autoReleaseAfter / 3,
+	}
 }
