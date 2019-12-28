@@ -161,7 +161,7 @@ func TestKeepAlive(t *testing.T, mng name_manager.NameManager, mockClock *clock.
 	// acquired again
 	name, err = mng.Acquire("foo")
 	assert.NoError(t, err)
-	assert.Equal(t, "0", name)
+	assert.Equal(t, "0", name, "if the name is 2, it means auto-release did not work")
 }
 
 func TestHold(t *testing.T, mng name_manager.NameManager, mockClock *clock.Mock) {

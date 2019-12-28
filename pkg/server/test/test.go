@@ -5,6 +5,8 @@ package test
 
 import (
 	"fmt"
+	"github.com/benbjohnson/clock"
+	"github.com/hchauvin/name_manager/pkg/local_backend"
 	"github.com/hchauvin/name_manager/pkg/name_manager"
 	"github.com/hchauvin/name_manager/pkg/server"
 	"io/ioutil"
@@ -52,4 +54,8 @@ func New(autoReleaseAfter int) (*TestServer, error) {
 			manager.Reset()
 		},
 	}, nil
+}
+
+func (s *TestServer) MockClock(c clock.Clock) {
+	local_backend.MockClock(s.Impl, c)
 }

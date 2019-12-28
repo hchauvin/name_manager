@@ -5,6 +5,7 @@ package rest_backend
 
 import (
 	"fmt"
+	"github.com/benbjohnson/clock"
 	_ "github.com/hchauvin/name_manager/pkg/local_backend"
 	"github.com/hchauvin/name_manager/pkg/name_manager"
 	testserver "github.com/hchauvin/name_manager/pkg/server/test"
@@ -14,38 +15,80 @@ import (
 )
 
 func TestListAfterCreate(t *testing.T) {
-	testutil.TestListAfterCreate(t, createTestNameManager(t, 0))
+	mng, _ := createTestNameManager(t, 0)
+	testutil.TestListAfterCreate(t, mng)
 }
 
 func TestReleaseAfterCreate(t *testing.T) {
-	testutil.TestReleaseAfterCreate(t, createTestNameManager(t, 0))
+	mng, _ := createTestNameManager(t, 0)
+	testutil.TestReleaseAfterCreate(t, mng)
 }
 
 func TestAcquireTwiceForSameFamily(t *testing.T) {
-	testutil.TestAcquireTwiceForSameFamily(t, createTestNameManager(t, 0))
+	mng, _ := createTestNameManager(t, 0)
+	testutil.TestAcquireTwiceForSameFamily(t, mng)
 }
 
 func TestAcquireForDifferentFamilies(t *testing.T) {
-	testutil.TestAcquireForDifferentFamilies(t, createTestNameManager(t, 0))
+	mng, _ := createTestNameManager(t, 0)
+	testutil.TestAcquireForDifferentFamilies(t, mng)
 }
 
 func TestAcquireReleaseThenAcquireForAnotherFamily(t *testing.T) {
-	testutil.TestAcquireReleaseThenAcquireForAnotherFamily(t, createTestNameManager(t, 0))
+	mng, _ := createTestNameManager(t, 0)
+	testutil.TestAcquireReleaseThenAcquireForAnotherFamily(t, mng)
 }
 
 func TestAcquireAcquireReleaseAcquireAcquire(t *testing.T) {
-	testutil.TestAcquireAcquireReleaseAcquireAcquire(t, createTestNameManager(t, 0))
+	mng, _ := createTestNameManager(t, 0)
+	testutil.TestAcquireAcquireReleaseAcquireAcquire(t, mng)
+}
+
+func TestList(t *testing.T) {
+	mng, ts := createTestNameManager(t, 0)
+	mockClock := clock.NewMock()
+	mng.(*restBackend).clock = mockClock
+	ts.MockClock(mockClock)
+	testutil.TestList(t, mng, mockClock)
+}
+
+func TestKeepAlive(t *testing.T) {
+	mng, ts := createTestNameManager(t, 5)
+	mockClock := clock.NewMock()
+	mng.(*restBackend).clock = mockClock
+	ts.MockClock(mockClock)
+	testutil.TestKeepAlive(t, mng, mockClock)
+}
+
+func TestHold(t *testing.T) {
+	mng, _ := createTestNameManager(t, 5)
+	mockClock := clock.NewMock()
+	mng.(*restBackend).clock = mockClock
+	testutil.TestHold(t, mng, mockClock)
 }
 
 func TestTryAcquire(t *testing.T) {
-	testutil.TestTryAcquire(t, createTestNameManager(t, 0))
+	mng, _ := createTestNameManager(t, 0)
+	testutil.TestTryAcquire(t, mng)
 }
 
 func TestTryAcquireErrors(t *testing.T) {
-	testutil.TestTryAcquireErrors(t, createTestNameManager(t, 0))
+	mng, _ := createTestNameManager(t, 0)
+	testutil.TestTryAcquireErrors(t, mng)
 }
 
-func createTestNameManager(t *testing.T, autoReleaseAfter int) name_manager.NameManager {
+func TestTryHold(t *testing.T) {
+	mng, ts := createTestNameManager(t, 5)
+	mockClock := clock.NewMock()
+	mng.(*restBackend).clock = mockClock
+	ts.MockClock(mockClock)
+	testutil.TestTryHold(t, mng, mockClock)
+}
+
+func createTestNameManager(
+	t *testing.T,
+	autoReleaseAfter int,
+) (name_manager.NameManager, *testserver.TestServer) {
 	ts, err := testserver.New(autoReleaseAfter)
 	assert.Nil(t, err)
 
@@ -57,5 +100,5 @@ func createTestNameManager(t *testing.T, autoReleaseAfter int) name_manager.Name
 	assert.Nil(t, err)
 
 	manager.(*restBackend).resetHook = ts.Clean
-	return manager
+	return manager, ts
 }

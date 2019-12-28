@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2019 Hadrien Chauvin
+
 // Package hold implement the holding mechanism common to all the backends.
 package hold
 
