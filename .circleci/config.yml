@@ -97,6 +97,7 @@ jobs:
       name: vs2019
     steps:
       - checkout
+      - run: choco install mingw # for cgo
       - run: go test -v ./...
       - run:
           name: Build CLI
