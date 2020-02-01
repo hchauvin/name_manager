@@ -4,7 +4,7 @@ go 1.13
 
 require (
 	github.com/DataDog/zstd v1.4.4 // indirect
-	github.com/avast/retry-go v2.4.3+incompatible
+	github.com/avast/retry-go v2.5.0+incompatible
 	github.com/benbjohnson/clock v1.0.0
 	github.com/dustin/go-humanize v1.0.0
 	github.com/etcd-io/bbolt v1.3.3
