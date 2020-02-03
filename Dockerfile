@@ -21,7 +21,3 @@ COPY --from=builder /etc/passwd /etc/passwd
 USER appuser
 
 ENTRYPOINT ["/name_manager"]
-
-
-
-

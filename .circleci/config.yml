@@ -116,6 +116,23 @@ jobs:
     steps:
       - checkout
       - run: curl -sL https://git.io/goreleaser | bash
+  docker:
+    docker:
+      - image: docker:17.05.0-ce-git
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Docker build
+          command: |
+            docker build . -t hchauvin/name_manager:$CIRCLE_TAG
+      - run:
+          name: Docker push
+          command: |
+            docker login --username hchauvin -p $DOCKER_HUB_TOKEN
+            docker push hchauvin/name_manager:$CIRCLE_TAG
+            docker tag hchauvin/name_manager:$CIRCLE_TAG hchauvin/name_manager:latest
+            docker push hchauvin/name_manager:latest
 
 workflows:
   main:
@@ -144,6 +161,14 @@ workflows:
             - test-linux-docker-compose
             - test-darwin
             - test-windows
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /v[0-9]+(\.[0-9]+)*(-.*)*/
+      - docker:
+          requires:
+            - release
           filters:
             branches:
               ignore: /.*/
