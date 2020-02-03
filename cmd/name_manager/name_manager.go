@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/exec"
 	"os/signal"
 
 	"fmt"
@@ -77,17 +78,31 @@ func main() {
 					return err
 				}
 				family := c.Args().Get(0)
+				cmd := c.Args().Tail()
 				name, errc, release, err := nameManager.Hold(family)
 				if err != nil {
 					return err
 				}
-				fmt.Println(name)
-				sig := make(chan os.Signal)
-				signal.Notify(sig, os.Interrupt)
-				select {
-				case <-sig:
-				case err := <-errc:
-					return err
+				if len(cmd) == 0 {
+					// No command given, release on Ctl-C
+					fmt.Println(name)
+					sig := make(chan os.Signal)
+					signal.Notify(sig, os.Interrupt)
+					select {
+					case <-sig:
+					case err := <-errc:
+						return err
+					}
+				} else {
+					c := exec.Command(cmd[0], cmd[1:]...)
+					c.Stdout = os.Stdout
+					c.Stderr = os.Stderr
+					if err := c.Run(); err != nil {
+						if exitErr, ok := err.(*exec.ExitError); ok {
+							os.Exit(exitErr.ExitCode())
+						}
+						return err
+					}
 				}
 				if err := release(); err != nil {
 					return err
