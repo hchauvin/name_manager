@@ -5,7 +5,7 @@ package main
 
 import (
 	"github.com/hchauvin/name_manager/pkg/server"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 	"log"
 	"net"
 	"os"
@@ -28,7 +28,7 @@ var (
 )
 
 func getNameManager(c *cli.Context) (name_manager.NameManager, error) {
-	return name_manager.CreateFromURL(c.GlobalString("backend"))
+	return name_manager.CreateFromURL(c.String("backend"))
 }
 
 func printNames(names []name_manager.Name) {
@@ -61,13 +61,13 @@ func main() {
 	app.Name = "name_manager"
 	app.Usage = "Manage shared test resources with a global lock"
 	app.Flags = []cli.Flag{
-		cli.StringFlag{
+		&cli.StringFlag{
 			Name:  "backend",
 			Value: "local://~/.name_manager",
 		},
 	}
 
-	app.Commands = []cli.Command{
+	app.Commands = []*cli.Command{
 		{
 			Name:  "hold",
 			Usage: "holds a name for a given family, releasing it on Ctl-C",
@@ -175,7 +175,7 @@ func main() {
 			Name:  "serve",
 			Usage: "serves a name manager server",
 			Flags: []cli.Flag{
-				cli.StringFlag{
+				&cli.StringFlag{
 					Name:  "address",
 					Usage: "address to listen to",
 					Value: ":9008",
