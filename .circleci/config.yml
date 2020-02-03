@@ -38,7 +38,7 @@ jobs:
               echo "ERROR: gofmt: bad format:\n$badFormat"
               exit 1
             fi
-      - run: go test -v ./...
+      - run: go test -v ./pkg/...
       - run:
           name: Build CLI
           command: |
@@ -82,7 +82,7 @@ jobs:
             goRelArch=darwin-amd64
             url="https://golang.org/dl/go${GOLANG_VERSION}.${goRelArch}.tar.gz"
             curl -L $url | tar -C ~ -xzf -
-      - run: ~/go/bin/go test -v ./...
+      - run: ~/go/bin/go test -v ./pkg/...
       - run:
           name: Build CLI
           command: |
@@ -99,7 +99,7 @@ jobs:
     steps:
       - checkout
       - run: choco install mingw # for cgo
-      - run: go test -v ./...
+      - run: go test -v ./pkg/...
       - run:
           name: Build CLI
           command: |
