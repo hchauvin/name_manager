@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2019 Hadrien Chauvin
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: name_manager
+  labels:
+    app.kubernetes.io/name: name_manager
+spec:
+  ports:
+    - port: 9008
+      name: web
+  selector:
+    app.kubernetes.io/name: name_manager
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: name_manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: name_manager
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: name_manager
+    spec:
+      containers:
+        - name: name_manager
+          image: hchauvin/name_manager
+          ports:
+            - containerPort: 9008  # web
+          args:
+            - "--backend=local://~/names;autoReleaseAfter=5s"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9008
+            initialDelaySeconds: 1
+            periodSeconds: 3
+            failureThreshold: 4

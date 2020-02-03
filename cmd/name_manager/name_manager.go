@@ -210,6 +210,10 @@ func main() {
 				return server.Serve(listener, nameManager)
 			},
 		},
+		{
+			Name: "install",
+			Usage: "ensures a name manager server is installed on a Kubernetes cluster",
+		},
 	}
 
 	err := app.Run(os.Args)
