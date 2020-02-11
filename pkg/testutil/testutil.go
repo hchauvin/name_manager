@@ -9,7 +9,7 @@ import (
 )
 
 func TestListAfterCreate(t *testing.T, mng name_manager.NameManager) {
-	defer mng.Reset()
+	defer reset(mng)
 
 	lst, err := mng.List()
 	assert.Nil(t, err)
@@ -17,14 +17,14 @@ func TestListAfterCreate(t *testing.T, mng name_manager.NameManager) {
 }
 
 func TestReleaseAfterCreate(t *testing.T, mng name_manager.NameManager) {
-	defer mng.Reset()
+	defer reset(mng)
 
 	err := mng.Release("foo", "bar")
 	assert.Nil(t, err)
 }
 
 func TestAcquireTwiceForSameFamily(t *testing.T, mng name_manager.NameManager) {
-	defer mng.Reset()
+	defer reset(mng)
 
 	name0, err := mng.Acquire("foo")
 	assert.NoError(t, err)
@@ -36,7 +36,7 @@ func TestAcquireTwiceForSameFamily(t *testing.T, mng name_manager.NameManager) {
 }
 
 func TestAcquireForDifferentFamilies(t *testing.T, mng name_manager.NameManager) {
-	defer mng.Reset()
+	defer reset(mng)
 
 	nameFoo, err := mng.Acquire("foo")
 	assert.Nil(t, err)
@@ -48,7 +48,7 @@ func TestAcquireForDifferentFamilies(t *testing.T, mng name_manager.NameManager)
 }
 
 func TestAcquireReleaseThenAcquireForAnotherFamily(t *testing.T, mng name_manager.NameManager) {
-	defer mng.Reset()
+	defer reset(mng)
 
 	nameFoo, err := mng.Acquire("foo")
 	assert.Nil(t, err)
@@ -63,7 +63,7 @@ func TestAcquireReleaseThenAcquireForAnotherFamily(t *testing.T, mng name_manage
 }
 
 func TestAcquireAcquireReleaseAcquireAcquire(t *testing.T, mng name_manager.NameManager) {
-	defer mng.Reset()
+	defer reset(mng)
 
 	name0, err := mng.Acquire("foo")
 	assert.Nil(t, err)
@@ -86,24 +86,33 @@ func TestAcquireAcquireReleaseAcquireAcquire(t *testing.T, mng name_manager.Name
 }
 
 func TestList(t *testing.T, mng name_manager.NameManager, mockClock *clock.Mock) {
-	defer mng.Reset()
+	defer reset(mng)
 
-	startTime := mockClock.Now().UTC()
+	wait := func(d time.Duration) {
+		if mockClock != nil {
+			mockClock.Add(d)
+		}
+	}
+
+	var startTime time.Time
+	if mockClock != nil {
+		startTime = mockClock.Now().UTC()
+	}
 
 	_, err := mng.Acquire("foo")
 	assert.Nil(t, err)
 
-	mockClock.Add(2 * time.Hour)
+	wait(2 * time.Second)
 
 	_, err = mng.Acquire("bar")
 	assert.Nil(t, err)
 
-	mockClock.Add(2 * time.Hour)
+	wait(2 * time.Second)
 
 	_, err = mng.Acquire("foo")
 	assert.Nil(t, err)
 
-	mockClock.Add(2 * time.Hour)
+	wait(2 * time.Second)
 
 	err = mng.Release("foo", "1")
 	assert.Nil(t, err)
@@ -116,6 +125,7 @@ func TestList(t *testing.T, mng name_manager.NameManager, mockClock *clock.Mock)
 
 	names, err := mng.List()
 	assert.Nil(t, err)
+
 	expectedNames := []name_manager.Name{
 		{
 			Name:      "0",
@@ -127,35 +137,56 @@ func TestList(t *testing.T, mng name_manager.NameManager, mockClock *clock.Mock)
 		{
 			Name:      "0",
 			Family:    "bar",
-			CreatedAt: startTime.Add(2 * time.Hour).UTC(),
-			UpdatedAt: startTime.Add(6 * time.Hour).UTC(),
+			CreatedAt: startTime.Add(2 * time.Second).UTC(),
+			UpdatedAt: startTime.Add(6 * time.Second).UTC(),
 			Free:      false,
 		},
 		{
 			Name:      "1",
 			Family:    "foo",
-			CreatedAt: startTime.Add(4 * time.Hour).UTC(),
+			CreatedAt: startTime.Add(4 * time.Second).UTC(),
 			Free:      true,
 		},
 	}
+
+	if mockClock == nil {
+		for i := range expectedNames {
+			expectedNames[i].UpdatedAt = time.Unix(0, 0)
+			expectedNames[i].CreatedAt = time.Unix(0, 0)
+		}
+
+		for i := range names {
+			names[i].UpdatedAt = time.Unix(0, 0)
+			names[i].CreatedAt = time.Unix(0, 0)
+		}
+	}
+
 	assert.ElementsMatch(t, expectedNames, names)
 }
 
 func TestKeepAlive(t *testing.T, mng name_manager.NameManager, mockClock *clock.Mock) {
-	defer mng.Reset()
+	defer reset(mng)
+
+	wait := func(d time.Duration) {
+		if mockClock != nil {
+			mockClock.Add(d)
+		} else {
+			time.Sleep(d)
+		}
+	}
 
 	name, err := mng.Acquire("foo")
 	assert.NoError(t, err)
 	assert.Equal(t, "0", name)
 
-	mockClock.Add(1 * time.Second)
+	wait(1 * time.Second)
 
 	// When the auto-release period is not past, a new name is acquired
 	name, err = mng.Acquire("foo")
 	assert.NoError(t, err)
 	assert.Equal(t, "1", name)
 
-	mockClock.Add(15 * time.Second)
+	wait(15 * time.Second)
 
 	// After a certain time, the first name is auto-released and
 	// acquired again
@@ -165,7 +196,7 @@ func TestKeepAlive(t *testing.T, mng name_manager.NameManager, mockClock *clock.
 }
 
 func TestHold(t *testing.T, mng name_manager.NameManager, mockClock *clock.Mock) {
-	defer mng.Reset()
+	defer reset(mng)
 
 	name, errc, release, err := mng.Hold("foo")
 	assert.NoError(t, err)
@@ -183,7 +214,11 @@ func TestHold(t *testing.T, mng name_manager.NameManager, mockClock *clock.Mock)
 	assert.Equal(t, "0", names[0].Name)
 	assert.Equal(t, false, names[0].Free)
 
-	mockClock.Add(7 * time.Second)
+	if mockClock != nil {
+		mockClock.Add(7 * time.Second)
+	} else {
+		time.Sleep(7 * time.Second)
+	}
 
 	// The name is still there, and not free, past the auto-release
 	// period
@@ -207,7 +242,7 @@ func TestHold(t *testing.T, mng name_manager.NameManager, mockClock *clock.Mock)
 }
 
 func TestTryAcquire(t *testing.T, mng name_manager.NameManager) {
-	defer mng.Reset()
+	defer reset(mng)
 
 	name, err := mng.Acquire("foo")
 	assert.NoError(t, err)
@@ -229,7 +264,7 @@ func TestTryAcquire(t *testing.T, mng name_manager.NameManager) {
 }
 
 func TestTryAcquireErrors(t *testing.T, mng name_manager.NameManager) {
-	defer mng.Reset()
+	defer reset(mng)
 
 	err := mng.TryAcquire("foo", "0")
 	assert.Equal(t, err, name_manager.ErrNotExist)
@@ -243,7 +278,7 @@ func TestTryAcquireErrors(t *testing.T, mng name_manager.NameManager) {
 }
 
 func TestTryHold(t *testing.T, mng name_manager.NameManager, mockClock *clock.Mock) {
-	defer mng.Reset()
+	defer reset(mng)
 
 	name, err := mng.Acquire("foo")
 	assert.NoError(t, err)
@@ -267,7 +302,11 @@ func TestTryHold(t *testing.T, mng name_manager.NameManager, mockClock *clock.Mo
 	assert.Equal(t, "0", names[0].Name)
 	assert.Equal(t, false, names[0].Free)
 
-	mockClock.Add(7 * time.Second)
+	if mockClock != nil {
+		mockClock.Add(7 * time.Second)
+	} else {
+		time.Sleep(7 * time.Second)
+	}
 
 	// The name is still there, and not free, past the auto-release
 	// period
@@ -288,4 +327,10 @@ func TestTryHold(t *testing.T, mng name_manager.NameManager, mockClock *clock.Mo
 	assert.Equal(t, "foo", names[0].Family)
 	assert.Equal(t, "0", names[0].Name)
 	assert.Equal(t, true, names[0].Free)
+}
+
+func reset(mng name_manager.NameManager) {
+	if err := mng.Reset(); err != nil {
+		panic(err)
+	}
 }

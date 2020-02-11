@@ -27,7 +27,9 @@ jobs:
       - image: circleci/golang:1.13
         environment:
           MONGODB_URI: "mongodb://127.0.0.1:27017"
+          FIRESTORE_EMULATOR_HOST: "127.0.0.1:8080"
       - image: circleci/mongo:4.2.3
+      - image: ridedott/firestore-emulator:1.10.4
     steps:
       - checkout
       - run:
