@@ -78,7 +78,7 @@ func (fbk *firestoreBackend) Acquire(family string) (string, error) {
 	// We cannot release the zombies in the transaction as listing does not work in transactions
 	// (at least in Firestore emulators).
 	if autoReleaseAfter := fbk.options.autoReleaseAfter; autoReleaseAfter > 0 {
-		if err := releaseZombies(ctx, client, autoReleaseAfter, family); err != nil {
+		if err := fbk.releaseZombies(ctx, client, autoReleaseAfter, family); err != nil {
 			return "", err
 		}
 	}
@@ -86,7 +86,7 @@ func (fbk *firestoreBackend) Acquire(family string) (string, error) {
 	name := ""
 	if err := client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// Try to get the first free name
-		nameDoc, err := tx.Documents(client.Collection("families/"+family+"/names").
+		nameDoc, err := tx.Documents(client.Collection(fbk.options.prefix+"families/"+family+"/names").
 			Where("free", "==", true).
 			Limit(1)).Next()
 		if err == nil {
@@ -108,7 +108,7 @@ func (fbk *firestoreBackend) Acquire(family string) (string, error) {
 		// No free name could be found: a new name will be created using the
 		// counter stored at the family level.
 
-		familyRef := client.Doc("families/" + family)
+		familyRef := client.Doc(fbk.options.prefix + "families/" + family)
 
 		familyDoc, err := txGet(tx, familyRef)
 		if err != nil {
@@ -123,7 +123,7 @@ func (fbk *firestoreBackend) Acquire(family string) (string, error) {
 		name = strconv.Itoa(familyD.Count)
 
 		if err := tx.Set(
-			client.Doc(fmt.Sprintf("families/%s/names/%s", family, name)),
+			client.Doc(fmt.Sprintf(fbk.options.prefix+"families/%s/names/%s", family, name)),
 			nameData{Free: false},
 		); err != nil {
 			return err
@@ -148,7 +148,7 @@ func (fbk *firestoreBackend) KeepAlive(family, name string) error {
 	defer client.Close()
 
 	return client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		nameRef := client.Doc(fmt.Sprintf("families/%s/names/%s", family, name))
+		nameRef := client.Doc(fmt.Sprintf(fbk.options.prefix+"families/%s/names/%s", family, name))
 		doc, err := txGet(tx, nameRef)
 		if err != nil {
 			return err
@@ -180,7 +180,7 @@ func (fbk *firestoreBackend) Release(family, name string) error {
 	defer client.Close()
 
 	return client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		return release(client, tx, family, name)
+		return fbk.release(client, tx, family, name)
 	})
 }
 
@@ -198,7 +198,7 @@ func (fbk *firestoreBackend) TryAcquire(family, name string) error {
 	defer client.Close()
 
 	return client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		nameRef := client.Doc(fmt.Sprintf("families/%s/names/%s", family, name))
+		nameRef := client.Doc(fmt.Sprintf(fbk.options.prefix+"families/%s/names/%s", family, name))
 		nameDoc, err := txGet(tx, nameRef)
 		if err != nil {
 			return err
@@ -228,7 +228,7 @@ func (fbk *firestoreBackend) List() ([]name_manager.Name, error) {
 	defer client.Close()
 
 	var names []name_manager.Name
-	familyIter := client.Collection("families").Documents(ctx)
+	familyIter := client.Collection(fbk.options.prefix + "families").Documents(ctx)
 	for {
 		familyDoc, err := familyIter.Next()
 		if err != nil {
@@ -274,7 +274,7 @@ func (fbk *firestoreBackend) Reset() error {
 	}
 	defer client.Close()
 
-	familyIter := client.Collection("families").Documents(ctx)
+	familyIter := client.Collection(fbk.options.prefix + "families").Documents(ctx)
 	for {
 		familyDoc, err := familyIter.Next()
 		if err != nil {
@@ -321,18 +321,9 @@ func (fbk *firestoreBackend) hold() *hold.Hold {
 	}
 }
 
-// txGet, contrary to tx.Get, does not error when the document does not exist.
-func txGet(tx *firestore.Transaction, dr *firestore.DocumentRef) (*firestore.DocumentSnapshot, error) {
-	docs, err := tx.GetAll([]*firestore.DocumentRef{dr})
-	if err != nil {
-		return nil, err
-	}
-	return docs[0], nil
-}
-
 // release implements name release inside a Firestore transaction.
-func release(client *firestore.Client, tx *firestore.Transaction, family, name string) error {
-	nameRef := client.Doc(fmt.Sprintf("families/%s/names/%s", family, name))
+func (fbk *firestoreBackend) release(client *firestore.Client, tx *firestore.Transaction, family, name string) error {
+	nameRef := client.Doc(fmt.Sprintf(fbk.options.prefix+"families/%s/names/%s", family, name))
 	nameDoc, err := txGet(tx, nameRef)
 	if err != nil {
 		return err
@@ -347,9 +338,9 @@ func release(client *firestore.Client, tx *firestore.Transaction, family, name s
 
 // releaseZombies releases the zombie names (that is, those that are not kept alive anymore
 // and should be garbage-collected).
-func releaseZombies(ctx context.Context, client *firestore.Client, autoReleaseAfter time.Duration, family string) error {
+func (fbk *firestoreBackend) releaseZombies(ctx context.Context, client *firestore.Client, autoReleaseAfter time.Duration, family string) error {
 	now := time.Now()
-	familyIter := client.Collection("families").Documents(ctx)
+	familyIter := client.Collection(fbk.options.prefix + "families").Documents(ctx)
 	for {
 		familyDoc, err := familyIter.Next()
 		if err != nil {
@@ -371,7 +362,7 @@ func releaseZombies(ctx context.Context, client *firestore.Client, autoReleaseAf
 
 			if now.Sub(nameDoc.UpdateTime) > autoReleaseAfter {
 				if err := client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-					return release(client, tx, family, nameDoc.Ref.ID)
+					return fbk.release(client, tx, family, nameDoc.Ref.ID)
 				}); err != nil {
 					return err
 				}
@@ -379,4 +370,13 @@ func releaseZombies(ctx context.Context, client *firestore.Client, autoReleaseAf
 		}
 	}
 	return nil
+}
+
+// txGet, contrary to tx.Get, does not error when the document does not exist.
+func txGet(tx *firestore.Transaction, dr *firestore.DocumentRef) (*firestore.DocumentSnapshot, error) {
+	docs, err := tx.GetAll([]*firestore.DocumentRef{dr})
+	if err != nil {
+		return nil, err
+	}
+	return docs[0], nil
 }

@@ -12,6 +12,7 @@ import (
 
 type options struct {
 	projectID        string
+	prefix           string
 	autoReleaseAfter time.Duration
 }
 
@@ -29,6 +30,9 @@ func parseBackendURL(backendURL string) (*options, error) {
 		switch key {
 		case "projectID":
 			opts.projectID = value
+
+		case "prefix":
+			opts.prefix = value
 
 		case "autoReleaseAfter":
 			var err error
