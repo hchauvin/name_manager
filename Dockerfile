@@ -8,9 +8,9 @@ COPY . .
 
 RUN go mod download
 
-RUN CGO_ENABLED=0 GOOS=linux go test -v ./...
-
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -a -installsuffix cgo -o bin/name_manager ./cmd/name_manager
+
+RUN CGO_ENABLED=0 GOOS=linux go test -v ./...
 
 # Step 1: build end product
 FROM gcr.io/distroless/static:latest@sha256:c6d5981545ce1406d33e61434c61e9452dad93ecd8397c41e89036ef977a88f4
