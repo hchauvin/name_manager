@@ -88,6 +88,16 @@ export MONGODB_URI="mongodb://127.0.0.1:27017"
 go test -v ./pkg/mongo_backend/...
 ```
 
+The integration tests for the firestore backend require a Firestore emulator
+to be running locally:
+
+```bash
+docker run --name some-firestore -p 8080:8080 -e PORT=8080 ridedott/firestore-emulator:1.10.4
+
+export FIRESTORE_EMULATOR_HOST="127.0.0.1:8080"
+go test -v ./pkg/firestore_backend/...
+```
+
 ## License
 
 `name_manager` is licensed under [The MIT License](./LICENSE).
