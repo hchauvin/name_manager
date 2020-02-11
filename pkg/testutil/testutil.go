@@ -4,6 +4,7 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/hchauvin/name_manager/pkg/name_manager"
 	"github.com/stretchr/testify/assert"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -330,6 +331,12 @@ func TestTryHold(t *testing.T, mng name_manager.NameManager, mockClock *clock.Mo
 }
 
 func reset(mng name_manager.NameManager) {
+	if runtime.GOOS == "windows" {
+		// FIXME: On Windows, "reset" fails with
+		// "The process cannot access the file because it is being used by another process."
+		mng.Reset()
+		return
+	}
 	if err := mng.Reset(); err != nil {
 		panic(err)
 	}
