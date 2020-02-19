@@ -3,7 +3,7 @@ module github.com/hchauvin/name_manager
 go 1.13
 
 require (
-	cloud.google.com/go v0.52.0
+	cloud.google.com/go v0.53.0
 	cloud.google.com/go/firestore v1.1.1
 	github.com/avast/retry-go v2.5.0+incompatible
 	github.com/benbjohnson/clock v1.0.0
