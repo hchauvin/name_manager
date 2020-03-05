@@ -16,7 +16,7 @@ require (
 	github.com/urfave/cli/v2 v2.1.1
 	github.com/xdg/stringprep v1.0.0 // indirect
 	go.etcd.io/bbolt v1.3.3 // indirect
-	go.mongodb.org/mongo-driver v1.3.0
+	go.mongodb.org/mongo-driver v1.3.1
 	golang.org/x/crypto v0.0.0-20191122220453-ac88ee75c92c // indirect
 	google.golang.org/api v0.19.0
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
