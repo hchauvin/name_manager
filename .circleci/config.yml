@@ -143,26 +143,26 @@ workflows:
           filters:
             tags:
               only: /^v.*/
-      - test-linux-docker-compose:
-          requires:
-            - test-linux
-          filters:
-            tags:
-              only: /^v.*/
-      - test-darwin:
-          filters:
-            tags:
-              only: /^v.*/
-      - test-windows:
-          filters:
-            tags:
-              only: /^v.*/
+#      - test-linux-docker-compose:
+#          requires:
+#            - test-linux
+#          filters:
+#            tags:
+#              only: /^v.*/
+#      - test-darwin:
+#          filters:
+#            tags:
+#              only: /^v.*/
+#      - test-windows:
+#          filters:
+#            tags:
+#              only: /^v.*/
       - release:
           requires:
             - test-linux
-            - test-linux-docker-compose
-            - test-darwin
-            - test-windows
+#            - test-linux-docker-compose
+#            - test-darwin
+#            - test-windows
           filters:
             branches:
               ignore: /.*/
